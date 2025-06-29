@@ -1,9 +1,13 @@
+# Build Dependencies
+Cython>=3.0.0
+
 # Audio Processing
 librosa>=0.10.1
 pydub>=0.25.1
 scipy>=1.11.0
 numpy>=1.24.0
 madmom>=0.16.1
+# spleeter>=2.3.0  # Use CLI, not Python package
 
 # Machine Learning
 tensorflow>=2.13.0
@@ -16,6 +20,7 @@ pyttsx3>=2.90
 # Web Framework
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
+python-multipart>=0.0.20
 
 # Environment and Utilities
 python-dotenv>=1.0.0
@@ -28,4 +33,5 @@ librosa-essentia>=0.1.0
 # Development and Testing
 pytest>=7.4.0
 black>=23.0.0
-flake8>=6.0.0 soundfile>=0.12.1
+flake8>=6.0.0
+soundfile>=0.12.1

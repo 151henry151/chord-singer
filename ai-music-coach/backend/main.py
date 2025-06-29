@@ -18,6 +18,7 @@ from backend.api.routes import router
 from utils.config import get_api_config
 from backend.audio_processing.audio_utils import preprocess_audio
 from backend.audio_processing.chord_detection import ChordDetector
+from backend.audio_processing.vocal_separation import VocalSeparator
 from backend.synthesis.vocal_synthesis import VocalSynthesizer
 from backend.audio_processing.melody_extraction import MelodyExtractor
 
@@ -26,6 +27,7 @@ config = get_api_config()
 
 # Global status tracking
 processing_status = {}
+processing_results = {}  # Store file paths for completed jobs
 
 class MusicCoachProcessor:
     """
@@ -33,9 +35,10 @@ class MusicCoachProcessor:
     """
     
     def __init__(self):
-        """Initialize the processor with chord detector, melody extractor, and vocal synthesizer."""
+        """Initialize the processor with chord detector, melody extractor, vocal separator, and vocal synthesizer."""
         self.chord_detector = ChordDetector()
         self.melody_extractor = MelodyExtractor()
+        self.vocal_separator = VocalSeparator()
         self.vocal_synthesizer = VocalSynthesizer()
     
     def process_song(self, input_audio_path: str, output_audio_path: str, job_id: str) -> Dict[str, Any]:
@@ -57,34 +60,46 @@ class MusicCoachProcessor:
             processed_audio_path, audio_duration = preprocess_audio(input_audio_path)
             
             # Update status
+            processing_status[job_id] = {"status": "separating_vocals", "progress": 20, "message": "Separating vocals from instrumental..."}
+            
+            # Step 2: Separate vocals from instrumental
+            print(f"Separating vocals from instrumental...")
+            instrumental_path, vocals_path = self.vocal_separator.separate_vocals(processed_audio_path)
+            
+            # Update status
             processing_status[job_id] = {"status": "detecting_chords", "progress": 30, "message": "Detecting chords..."}
             
-            # Step 2: Detect chords
+            # Step 3: Detect chords (use instrumental for better chord detection)
             print(f"Detecting chords in audio...")
-            detected_chords = self.chord_detector.detect_chords(processed_audio_path)
+            detected_chords = self.chord_detector.detect_chords(instrumental_path)
             
             # Update status
             processing_status[job_id] = {"status": "extracting_melody", "progress": 50, "message": "Extracting melody..."}
             
-            # Step 3: Extract melody contour
+            # Step 4: Extract melody contour (use original vocals for melody extraction)
             print(f"Extracting melody contour...")
-            melody_contour = self.melody_extractor.extract_melody(processed_audio_path)
+            melody_contour = self.melody_extractor.extract_melody(vocals_path if vocals_path else processed_audio_path)
             
             # Update status
             processing_status[job_id] = {"status": "synthesizing", "progress": 70, "message": "Synthesizing vocals..."}
             
-            # Step 4: Synthesize sung chord vocals (pitch-mapped)
+            # Step 5: Synthesize sung chord vocals (pitch-mapped)
             print(f"Synthesizing sung chord vocals (pitch-mapped)...")
             output_path = self.vocal_synthesizer.synthesize_sung_chord_vocals(
-                detected_chords, melody_contour, audio_duration, output_audio_path
+                detected_chords, melody_contour, audio_duration, output_audio_path, instrumental_path
             )
             
-            # Update status
+            # Update status and store result
             processing_status[job_id] = {"status": "completed", "progress": 100, "message": "Processing complete!"}
+            processing_results[job_id] = output_path
             
-            # Clean up processed audio file
+            # Clean up temporary files
             if os.path.exists(processed_audio_path):
                 os.unlink(processed_audio_path)
+            if os.path.exists(instrumental_path) and instrumental_path != input_audio_path:
+                os.unlink(instrumental_path)
+            if vocals_path and os.path.exists(vocals_path):
+                os.unlink(vocals_path)
             
             return {
                 "detected_chords": detected_chords,
@@ -98,9 +113,10 @@ class MusicCoachProcessor:
             # Update status with error
             processing_status[job_id] = {"status": "error", "progress": 0, "message": f"Error: {str(e)}"}
             
-            # Clean up processed audio file if it exists
-            if 'processed_audio_path' in locals() and os.path.exists(processed_audio_path):
-                os.unlink(processed_audio_path)
+            # Clean up temporary files if they exist
+            for temp_file in ['processed_audio_path', 'instrumental_path', 'vocals_path']:
+                if temp_file in locals() and os.path.exists(locals()[temp_file]):
+                    os.unlink(locals()[temp_file])
             raise Exception(f"Error processing song: {str(e)}")
 
 
@@ -227,9 +243,19 @@ async def download_result(job_id: str):
     if status["status"] != "completed":
         raise HTTPException(status_code=400, detail="Processing not complete")
     
-    # For now, return a placeholder - in a real implementation, you'd store the file path
-    # and return the actual processed file
-    return {"message": "Download endpoint - file would be returned here"}
+    if job_id not in processing_results:
+        raise HTTPException(status_code=404, detail="Result file not found")
+    
+    file_path = processing_results[job_id]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    # Return the actual processed file with proper headers
+    return FileResponse(
+        file_path,
+        media_type="audio/wav",
+        headers={"Content-Disposition": f'attachment; filename="chord_cover_{job_id}.wav"'}
+    )
 
 
 @app.get("/")

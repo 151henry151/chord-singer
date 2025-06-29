@@ -1,0 +1,158 @@
+AI Music Coach: Technical Briefing
+I. Executive Summary
+
+This briefing outlines the technical architecture and key components for an "AI Music Coach" application. The core idea is to provide guitarists (and potentially other musicians) with an AI-powered tool that vocalizes chord names in rhythm, eventually singing them along the melody of an input song. The project leverages powerful Python libraries for audio processing and machine learning models for music information retrieval and voice synthesis.
+II. Core Functionality & Development Phases
+
+The AI Music Coach will evolve through several phases:
+
+    Phase 1: MVP (Minimum Viable Product):
+    Input: User uploads a song.
+    Processing: The system detects chords within the song.
+    Output: Spoken chord names are generated in rhythm, without following the melody yet.
+    Voice: Simple Text-to-Speech (TTS) models like Coqui or pyttsx3 will be used.
+    Libraries: PyDub and Librosa for audio handling; Madmom or a custom ML model for chord detection.
+    Phase 2: Singing Capability:
+    Enhancement: Melody extraction from the input song.
+    Refinement: Chord name vocals are sung to follow the extracted melody contour, with refined syllable synchronization.
+    Libraries: Librosa's f0 estimation, Melodia (via wrapper), or custom ML models for melody extraction; advanced TTS models (e.g., Tacotron 2, WaveNet/WaveGlow, DiffSinger) or commercial APIs for natural-sounding "singing" of chord names.
+    Phase 3: UI & UX:
+    User Interface: Development of a clean interface, waveform visualization, and tools for looping sections of the song.
+    Additional Features: Metronome and click-track options.
+    Phase 4: AI Voices & Playback Customization:
+    Personalization: Ability to select different AI voices, change song keys, and adjust instrument sounds.
+
+III. Key Technical Components & Libraries
+
+The project relies heavily on several Python libraries and AI models for audio signal processing, music information retrieval (MIR), and speech/singing synthesis.
+A. Audio Processing & Feature Extraction
+
+"Audio signal processing is pivotal in various domains, including speech recognition, music analysis, and environmental sound classification. Python, with its extensive array of libraries, offers a robust platform for implementing and advancing audio processing techniques." (IRJMETS)
+
+    Librosa: "The absolute cornerstone for music and audio analysis." (AI Guitar Coach: Technical Blueprint)
+
+    Functionality: Loading and manipulating audio files, feature extraction, time-series analysis, resampling, and visualization.
+    Key Features for Music Analysis:
+    Mel-Frequency Cepstral Coefficients (MFCCs): Transforms sound into a representation based on the Mel scale, aligned with human hearing, effective for "speech recognition, sound classification, and music analysis." (IRJMETS)
+    Chroma Features: Represent harmonic energy across the 12 pitch classes, "essential for analyzing harmonic content in music" and used for "chord recognition, key detection, and cover song identification." (IRJMETS, AI Guitar Coach: Technical Blueprint)
+    Spectral Contrast: Measures differences between peaks and valleys in the frequency spectrum to "distinguish between different textures and timbres in audio." (IRJMETS)
+    Zero-Crossing Rate (ZCR): Calculates the rate at which a signal changes sign, "instrumental in detecting percussive sounds and distinguishing between voiced (continuous) and unvoiced (intermittent) speech." (IRJMETS)
+    Root Mean Square (RMS) Energy: Quantifies the average power of an audio signal over time, useful for "measuring loudness and intensity variations." (IRJMETS)
+    Time-Frequency Representations:
+    Spectrograms: Visualizes frequency content over time using Short-Time Fourier Transforms (STFT), "foundational in tasks like speech-to-text." (IRJMETS)
+    Mel Spectrograms: Maps frequency content onto the Mel scale, emphasizing perceptually significant frequencies, "ideal for tasks like music genre classification and speech analysis." (IRJMETS)
+    Constant-Q Transform (CQT): Offers logarithmic frequency scaling, useful for "analyzing pitch and detecting harmonic structure." (IRJMETS)
+    Chromagrams: Compresses frequency content into 12 chroma bins, "widely used in chord detection and key identification." (IRJMETS)
+    Audio Manipulation:
+    Pitch Shifting: Adjusts pitch without altering speed, common in "music production." (IRJMETS)
+    Time Stretching: Alters tempo while maintaining pitch, useful in "speech analysis and music transcription." (IRJMETS)
+    Harmonic and Percussive Separation (HPSS): Decomposes audio into tonal and rhythmic components, facilitating "remixing, instrument isolation, and rhythmic analysis." (IRJMETS)
+    Beat and Rhythm Analysis:
+    Beat Tracking: Detects tempo and beat positions, providing "insights into the rhythmic structure of a piece." (IRJMETS)
+    Onset Detection: Identifies starting points of musical notes or percussive hits, "essential component in music transcription, rhythm analysis, and instrument separation tasks." (IRJMETS)
+    Tempo Estimation: Determines the speed of audio in BPM, "crucial for applications like music synchronization." (IRJMETS)
+    Visualization: Integrates with Matplotlib for waveform visualization, spectrograms, Mel spectrograms, and feature maps for debugging and understanding audio content.
+
+    PyDub:
+
+    Functionality: General audio manipulation, including "cutting, concatenating, changing volume, and format conversion." (AI Guitar Coach: Technical Blueprint) It is "built on FFmpeg" and useful for "preparing audio and combining tracks." (AI Guitar Coach: Technical Blueprint)
+
+    SciPy.signal:
+
+    Functionality: Provides tools for digital signal processing, including "filtering capabilities (e.g., low-pass, high-pass filters)" and "fast Fourier transform (FFT) and inverse FFT capabilities." (IRJMETS) It's crucial for "spectral analysis, a cornerstone of audio feature extraction." (IRJMETS)
+
+    Spleeter (by Deezer):
+
+    Functionality: "Separates audio into stems—commonly vocals/accompaniment, or vocals/drums/bass/other—using deep learning (TensorFlow)." (Audio Toolchain for Music Analysis and Synthesis, deezer/spleeter) It is "super-fast and accurate," capable of 2-, 4-, and 5-stem separation.
+    Use Case: "Perfect for isolating melody (vocals) from the rest of a song early in your pipeline." (Audio Toolchain for Music Analysis and Synthesis)
+
+B. Music Information Retrieval (MIR)
+
+    Chord Detection:
+
+    Madmom: A specialized Python library "designed for music information retrieval, with an emphasis on" beat tracking and onset detection. (IRJMETS) It can be integrated for chord recognition. (AI Guitar Coach: Technical Blueprint)
+    Custom ML Models: More complex but offers greater control, potentially using TensorFlow/PyTorch and leveraging Librosa's chroma features as input. (AI Guitar Coach: Technical Blueprint)
+
+    Melody Extraction:
+
+    "Melody extraction aims to identify the fundamental frequency (F0) contour of the main melody in a musical piece." (AI Music Coach: Structure and Implementation Plan)
+    Librosa's f0 estimation (e.g., pyin): A simpler approach, though "might be less robust for polyphony." (AI Guitar Coach: Technical Blueprint)
+    Melodia: An algorithm specifically designed for melody extraction, often integrated via wrappers like Vamp. (AI Guitar Coach: Technical Blueprint)
+    Deep Learning Models: DNN (Deep Neural Network) and LSTM (Long Short-Time Memory) networks are used for Automatic Music Transcription (AMT), which "reverse-engineers the ‘source code’ of a musical audio signal, generating symbolic representations such as music sheet that capture meaningful music parameters." (Music Transcription Using Deep Learning) These models can be trained on datasets like MAPS (MIDI Aligned Piano Sounds) which contain ground-truth onset/offset times and pitches.
+
+C. Vocal Synthesis Engine
+
+The goal is to generate "singing voice that replaces lyrics with chord names" and "follow melody contour." (AI Music Coach: Structure and Implementation Plan)
+
+    Text-to-Speech (TTS) Engines:
+
+    Coqui TTS: An open-source speech synthesis toolkit. Its XTTS model supports up to 16 languages. Users can "train your own model" by gathering voice recordings and following their documentation. (Coqui TTS Local Installation Tutorial - Reddit, Training a Model - TTS 0.22.0)
+    pyttsx3: A simple offline TTS library for Python.
+    gTTS (Google Text-to-Speech): A Python library and CLI tool to interface with Google Translate's text-to-speech API.
+    Advanced TTS Models: "Tacotron 2, WaveNet/WaveGlow or commercial APIs" are considered for "highly natural-sounding chord names that can truly 'sing' and follow a melody's nuances." (AI Guitar Coach: Technical Blueprint) These models typically involve complex pipelines but can achieve "intelligible and natural audios which are indistinguishable from human recordings." (Text to Speech Synthesis - arXiv) Diffusion-based models like Grad-TTS and DiffSinger are emerging for "expressive singing." (Audio Toolchain for Music Analysis and Synthesis, Text to Speech Synthesis - arXiv)
+
+    Pitch Shifting and Manipulation:
+
+    "To manipulate the pitch of the generated speech audio," techniques like "phase vocoder or PSOLA" are necessary. (AI Guitar Coach: Technical Blueprint)
+    Libraries like PyDub, Librosa, and SciPy.signal can be used for these audio processing techniques.
+    The vocal_synthesis.py module will need to "generate sung version of chord name following melody contour" by "syllabify[ing] chord name" and "map[ping] syllables to melody notes." (AI Music Coach: Structure and Implementation Plan)
+
+    Audio Mixing:
+
+    PyDub: Used to "overlay the generated vocal track onto the instrumental track" to create the final output audio. (AI Guitar Coach: Technical Blueprint)
+
+IV. Project Architecture & Implementation
+
+The project will follow a structured architecture:
+
+    ai-music-coach/:
+    backend/: Contains the core logic.
+    audio_processing/: Modules for chord detection, melody extraction, beat tracking, and key detection.
+    synthesis/: Modules for vocal synthesis, chord mapping, and timing synchronization.
+    api/: Defines routes, models, and utilities for interaction.
+    main.py: The main application entry point.
+    frontend/: (Details not extensively provided in sources, but typically includes UI components, services, and utilities).
+
+Example Workflow (Pseudocode):
+
+    preprocess_audio(audio_path):
+
+    Loads audio using PyDub.
+    Converts to standard format (e.g., WAV, mono, 44.1kHz).
+
+    detect_chords(audio_path):
+
+    Loads audio using Librosa.
+    Uses Madmom or a custom ML model (e.g., based on Librosa's chroma_stft) to predict chord sequences.
+
+    extract_melody(audio_path):
+
+    Loads audio using Librosa.
+    Estimates fundamental frequency (f0) using librosa.pyin or a dedicated algorithm like Melodia.
+    Returns a melody contour as [(time_sec, frequency_hz), ...].
+
+    vocalize_and_map_chords(chord_sequence, melody_contour, original_audio_duration_sec):
+
+    Generates a vocal track using a TTS engine (e.g., gTTS/pyttsx3).
+    For each chord, determines the corresponding melodic segment.
+    Calculates a target pitch (e.g., average pitch) for the chord's duration based on the melody.
+    "Important: Pitch shift the generated audio" using audio processing techniques to align with the melody.
+    Pads with silence to align segments.
+
+    mix_audio_tracks(instrumental_track_path, vocal_track_segment):
+
+    Loads the instrumental track using PyDub.
+    Overlays the generated vocal track onto the instrumental.
+
+V. Business Model & Considerations
+
+    Revenue Models:
+    Freemium: Limited monthly song analyses.
+    Premium Subscription: Unlimited use and advanced features.
+    Educational Licensing: For music schools. (AI Music Coach: Chordal Harmony Helper)
+    Hosting: Firebase / AWS / GCP for handling audio processing jobs.
+    Legal Note (Copyright): "While these tools technically can be used for lyric swapping, be aware that the responsibility for copyright compliance falls on you as the end user." (How To Change Song Lyrics With AI) This disclaimer is crucial for a music coaching app handling user-uploaded copyrighted material.
+
+VI. Conclusion
+
+The AI Music Coach presents a promising application for music education, leveraging robust Python libraries for audio analysis and advanced AI models for vocal synthesis. The phased development approach allows for a functional MVP and incremental feature additions, leading to a comprehensive and highly useful tool for musicians.

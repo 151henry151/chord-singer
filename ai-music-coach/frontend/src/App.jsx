@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 
 function App() {
@@ -6,12 +6,76 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingResult, setProcessingResult] = useState(null);
   const [error, setError] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [processingStatus, setProcessingStatus] = useState(null);
+  const [jobId, setJobId] = useState(null);
   
   const fileInputRef = useRef(null);
   const audioRef = useRef(null);
 
   const API_BASE_URL = 'http://localhost:8000';
+
+  // Poll for status updates
+  useEffect(() => {
+    let intervalId;
+    
+    if (jobId && isProcessing) {
+      intervalId = setInterval(async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/status/${jobId}`);
+          if (response.ok) {
+            const status = await response.json();
+            setProcessingStatus(status);
+            
+            // If processing is complete or failed, stop polling
+            if (status.status === 'completed' || status.status === 'error') {
+              setIsProcessing(false);
+              if (status.status === 'completed') {
+                // Download the completed result
+                try {
+                  const downloadResponse = await fetch(`${API_BASE_URL}/download/${jobId}`);
+                  if (downloadResponse.ok) {
+                    const audioBlob = await downloadResponse.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    // Get filename from response headers or generate one
+                    const contentDisposition = downloadResponse.headers.get('content-disposition');
+                    let filename = 'chord_cover.wav';
+                    if (contentDisposition) {
+                      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                      if (filenameMatch) {
+                        filename = filenameMatch[1];
+                      }
+                    }
+
+                    setProcessingResult({
+                      audioUrl,
+                      filename,
+                      blob: audioBlob
+                    });
+                  } else {
+                    setError('Failed to download result');
+                  }
+                } catch (err) {
+                  console.error('Error downloading result:', err);
+                  setError('Failed to download result');
+                }
+              } else {
+                setError(status.message || 'Processing failed');
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error checking status:', err);
+        }
+      }, 1000); // Poll every second
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [jobId, isProcessing]);
 
   const handleFileUpload = (event) => {
     const uploadedFile = event.target.files[0];
@@ -35,6 +99,8 @@ function App() {
       setFile(uploadedFile);
       setError(null);
       setProcessingResult(null);
+      setProcessingStatus(null);
+      setJobId(null);
     }
   };
 
@@ -46,14 +112,15 @@ function App() {
 
     setIsProcessing(true);
     setError(null);
-    setUploadProgress(0);
+    setProcessingStatus(null);
+    setProcessingResult(null);
 
     try {
       // Create FormData for file upload
       const formData = new FormData();
       formData.append('file', file);
 
-      // Make API request
+      // Make API request to start processing
       const response = await fetch(`${API_BASE_URL}/process-song/`, {
         method: 'POST',
         body: formData,
@@ -64,36 +131,21 @@ function App() {
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
       }
 
-      // Get the audio blob
-      const audioBlob = await response.blob();
+      // Get the job ID from response
+      const result = await response.json();
+      setJobId(result.job_id);
       
-      // Create object URL for audio playback
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      // Get filename from response headers or generate one
-      const contentDisposition = response.headers.get('content-disposition');
-      let filename = 'chord_cover.wav';
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
-        }
-      }
-
-      setProcessingResult({
-        audioUrl,
-        filename,
-        blob: audioBlob
+      // Initial status will be set by the polling effect
+      setProcessingStatus({
+        status: 'starting',
+        progress: 0,
+        message: 'Starting processing...'
       });
-
-      setUploadProgress(100);
       
     } catch (err) {
-      console.error('Error processing song:', err);
-      setError(err.message || 'Failed to process song. Please try again.');
-    } finally {
+      console.error('Error starting processing:', err);
+      setError(err.message || 'Failed to start processing. Please try again.');
       setIsProcessing(false);
-      setUploadProgress(0);
     }
   };
 
@@ -112,7 +164,8 @@ function App() {
     setFile(null);
     setProcessingResult(null);
     setError(null);
-    setUploadProgress(0);
+    setProcessingStatus(null);
+    setJobId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -168,17 +221,34 @@ function App() {
           )}
 
           {/* Progress Bar */}
-          {isProcessing && (
+          {isProcessing && processingStatus && (
             <div className="progress-container">
               <div className="progress-bar">
                 <div 
                   className="progress-fill" 
-                  style={{ width: `${uploadProgress}%` }}
+                  style={{ width: `${processingStatus.progress || 0}%` }}
                 ></div>
               </div>
-              <span className="progress-text">
-                {uploadProgress < 100 ? 'Processing...' : 'Complete!'}
-              </span>
+              <div className="progress-details">
+                <span className="progress-text">
+                  {processingStatus.message || 'Processing...'}
+                </span>
+                <span className="progress-percentage">
+                  {processingStatus.progress || 0}%
+                </span>
+              </div>
+              <div className="progress-status">
+                <span className={`status-badge status-${processingStatus.status}`}>
+                  {processingStatus.status === 'starting' && '🚀 Starting'}
+                  {processingStatus.status === 'preprocessing' && '🔄 Preprocessing'}
+                  {processingStatus.status === 'separating_vocals' && '🎤 Separating Vocals'}
+                  {processingStatus.status === 'detecting_chords' && '🎵 Detecting Chords'}
+                  {processingStatus.status === 'extracting_melody' && '🎼 Extracting Melody'}
+                  {processingStatus.status === 'synthesizing' && '🎤 Synthesizing'}
+                  {processingStatus.status === 'completed' && '✅ Complete'}
+                  {processingStatus.status === 'error' && '❌ Error'}
+                </span>
+              </div>
             </div>
           )}
 
