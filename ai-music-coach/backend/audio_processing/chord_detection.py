@@ -9,7 +9,7 @@ apply_patch()
 import numpy as np
 from typing import List, Tuple
 from madmom.audio.chroma import DeepChromaProcessor
-from madmom.features.chords import CRFChordRecognitionProcessor
+from madmom.features.chords import DeepChromaChordRecognitionProcessor
 
 class ChordDetector:
     """
@@ -20,7 +20,7 @@ class ChordDetector:
         Initialize the chord detector with madmom processors.
         """
         self.chroma_processor = DeepChromaProcessor()
-        self.chord_recognizer = CRFChordRecognitionProcessor()
+        self.chord_recognizer = DeepChromaChordRecognitionProcessor()
 
     def detect_chords(self, audio_file_path: str) -> List[Tuple[str, float, float]]:
         """
@@ -30,15 +30,31 @@ class ChordDetector:
         Returns:
             List of tuples: (chord_name, start_time_sec, end_time_sec)
         """
-        # Extract chroma features
-        chroma = self.chroma_processor(audio_file_path)
-        # Get chord predictions (label, start, end)
-        chords = self.chord_recognizer(chroma)
-        # Format output
-        formatted = []
-        for chord_label, start, end in chords:
-            formatted.append((self.format_chord_name(chord_label), float(start), float(end)))
-        return formatted
+        try:
+            # Extract chroma features
+            print(f"Extracting chroma features from {audio_file_path}")
+            chroma = self.chroma_processor(audio_file_path)
+            print(f"Chroma shape: {chroma.shape if hasattr(chroma, 'shape') else 'No shape'}")
+            print(f"Chroma type: {type(chroma)}")
+            
+            # Get chord predictions (label, start, end)
+            print("Running chord recognition...")
+            chords = self.chord_recognizer(chroma)
+            print(f"Detected {len(chords)} chords")
+            
+            # Format output
+            formatted = []
+            for chord_label, start, end in chords:
+                formatted.append((self.format_chord_name(chord_label), float(start), float(end)))
+            return formatted
+            
+        except Exception as e:
+            print(f"Error in chord detection: {e}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            traceback.print_exc()
+            # Return empty list as fallback
+            return []
 
     def format_chord_name(self, madmom_chord_label: str) -> str:
         """
