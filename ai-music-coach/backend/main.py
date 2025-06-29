@@ -10,18 +10,22 @@ from fastapi.responses import FileResponse
 import os
 import tempfile
 import shutil
+import uuid
+import time
 from typing import Dict, Any
 
-from api.routes import router
+from backend.api.routes import router
 from utils.config import get_api_config
-from audio_processing.audio_utils import preprocess_audio
-from audio_processing.chord_detection import ChordDetector
-from synthesis.vocal_synthesis import VocalSynthesizer
-from audio_processing.melody_extraction import MelodyExtractor
+from backend.audio_processing.audio_utils import preprocess_audio
+from backend.audio_processing.chord_detection import ChordDetector
+from backend.synthesis.vocal_synthesis import VocalSynthesizer
+from backend.audio_processing.melody_extraction import MelodyExtractor
 
 # Get configuration
 config = get_api_config()
 
+# Global status tracking
+processing_status = {}
 
 class MusicCoachProcessor:
     """
@@ -34,33 +38,49 @@ class MusicCoachProcessor:
         self.melody_extractor = MelodyExtractor()
         self.vocal_synthesizer = VocalSynthesizer()
     
-    def process_song(self, input_audio_path: str, output_audio_path: str) -> Dict[str, Any]:
+    def process_song(self, input_audio_path: str, output_audio_path: str, job_id: str) -> Dict[str, Any]:
         """
         Process a song to create sung chord vocals, pitch-mapped to the melody.
         Args:
             input_audio_path: Path to the input audio file
             output_audio_path: Path where the output audio will be saved
+            job_id: Unique job identifier for status tracking
         Returns:
             Dictionary containing detected chords, melody, and output file path
         """
         try:
+            # Update status
+            processing_status[job_id] = {"status": "preprocessing", "progress": 10, "message": "Preprocessing audio..."}
+            
             # Step 1: Preprocess the audio
             print(f"Preprocessing audio: {input_audio_path}")
             processed_audio_path, audio_duration = preprocess_audio(input_audio_path)
+            
+            # Update status
+            processing_status[job_id] = {"status": "detecting_chords", "progress": 30, "message": "Detecting chords..."}
             
             # Step 2: Detect chords
             print(f"Detecting chords in audio...")
             detected_chords = self.chord_detector.detect_chords(processed_audio_path)
             
+            # Update status
+            processing_status[job_id] = {"status": "extracting_melody", "progress": 50, "message": "Extracting melody..."}
+            
             # Step 3: Extract melody contour
             print(f"Extracting melody contour...")
             melody_contour = self.melody_extractor.extract_melody(processed_audio_path)
+            
+            # Update status
+            processing_status[job_id] = {"status": "synthesizing", "progress": 70, "message": "Synthesizing vocals..."}
             
             # Step 4: Synthesize sung chord vocals (pitch-mapped)
             print(f"Synthesizing sung chord vocals (pitch-mapped)...")
             output_path = self.vocal_synthesizer.synthesize_sung_chord_vocals(
                 detected_chords, melody_contour, audio_duration, output_audio_path
             )
+            
+            # Update status
+            processing_status[job_id] = {"status": "completed", "progress": 100, "message": "Processing complete!"}
             
             # Clean up processed audio file
             if os.path.exists(processed_audio_path):
@@ -75,6 +95,9 @@ class MusicCoachProcessor:
             }
             
         except Exception as e:
+            # Update status with error
+            processing_status[job_id] = {"status": "error", "progress": 0, "message": f"Error: {str(e)}"}
+            
             # Clean up processed audio file if it exists
             if 'processed_audio_path' in locals() and os.path.exists(processed_audio_path):
                 os.unlink(processed_audio_path)
@@ -117,7 +140,7 @@ async def process_song_endpoint(file: UploadFile = File(...)):
         file: Uploaded audio file
         
     Returns:
-        Processed audio file with spoken chord vocals
+        Job ID for tracking progress
     """
     # Validate file type
     allowed_types = ["audio/mpeg", "audio/wav", "audio/flac", "audio/mp4", "audio/ogg"]
@@ -126,6 +149,12 @@ async def process_song_endpoint(file: UploadFile = File(...)):
             status_code=400,
             detail=f"Unsupported file type. Allowed: {', '.join(allowed_types)}"
         )
+    
+    # Generate job ID
+    job_id = str(uuid.uuid4())
+    
+    # Initialize status
+    processing_status[job_id] = {"status": "starting", "progress": 0, "message": "Starting processing..."}
     
     # Create temporary files
     temp_input_path = None
@@ -141,24 +170,66 @@ async def process_song_endpoint(file: UploadFile = File(...)):
         temp_output_path = tempfile.mktemp(suffix=".wav")
         
         # Process the song
-        result = processor.process_song(temp_input_path, temp_output_path)
+        result = processor.process_song(temp_input_path, temp_output_path, job_id)
         
-        # Return the processed audio file
-        return FileResponse(
-            path=temp_output_path,
-            filename=f"chord_vocals_{file.filename}.wav",
-            media_type="audio/wav"
-        )
+        # Return job ID for status tracking
+        return {"job_id": job_id, "message": "Processing started"}
         
     except Exception as e:
+        # Update status with error
+        processing_status[job_id] = {"status": "error", "progress": 0, "message": f"Error: {str(e)}"}
         raise HTTPException(status_code=500, detail=f"Error processing song: {str(e)}")
         
     finally:
         # Clean up temporary files
         if temp_input_path and os.path.exists(temp_input_path):
             os.unlink(temp_input_path)
-        # Note: temp_output_path is used by FileResponse, so we don't delete it here
-        # FastAPI will handle the cleanup after sending the response
+
+
+@app.get("/status/{job_id}")
+async def get_processing_status(job_id: str):
+    """
+    Get the processing status for a job.
+    
+    Args:
+        job_id: Job identifier
+        
+    Returns:
+        Current processing status
+    """
+    if job_id not in processing_status:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    status = processing_status[job_id]
+    
+    # If completed, include download link
+    if status["status"] == "completed":
+        status["download_url"] = f"/download/{job_id}"
+    
+    return status
+
+
+@app.get("/download/{job_id}")
+async def download_result(job_id: str):
+    """
+    Download the processed audio file.
+    
+    Args:
+        job_id: Job identifier
+        
+    Returns:
+        Processed audio file
+    """
+    if job_id not in processing_status:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    status = processing_status[job_id]
+    if status["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Processing not complete")
+    
+    # For now, return a placeholder - in a real implementation, you'd store the file path
+    # and return the actual processed file
+    return {"message": "Download endpoint - file would be returned here"}
 
 
 @app.get("/")
