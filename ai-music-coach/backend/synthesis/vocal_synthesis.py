@@ -1,5 +1,5 @@
 """
-Vocal synthesis module for generating spoken chord names using text-to-speech.
+Vocal synthesis module for generating sung chord names using enhanced pyttsx3.
 """
 
 import numpy as np
@@ -9,19 +9,20 @@ from pydub import AudioSegment
 import tempfile
 import os
 from scipy.signal import resample
+import re
 
 
 class VocalSynthesizer:
     """
-    A class for synthesizing spoken chord names using text-to-speech.
+    A class for synthesizing sung chord names using enhanced pyttsx3 with singing characteristics.
     """
     
-    def __init__(self, voice_rate: int = 150, voice_volume: float = 0.9):
+    def __init__(self, voice_rate: int = 120, voice_volume: float = 0.9):
         """
-        Initialize the vocal synthesizer with pyttsx3 engine.
+        Initialize the vocal synthesizer with enhanced pyttsx3 engine.
         
         Args:
-            voice_rate: Speech rate (words per minute)
+            voice_rate: Speech rate (words per minute) - slower for singing
             voice_volume: Volume level (0.0 to 1.0)
         """
         self.engine = pyttsx3.init()
@@ -39,6 +40,8 @@ class VocalSynthesizer:
             else:
                 # Use the first available voice
                 self.engine.setProperty('voice', voices[0].id)
+        
+        print("✓ Enhanced pyttsx3 TTS initialized for singing")
     
     def synthesize_spoken_chord_vocals(self, chord_timeline: List[Tuple[str, float, float]], 
                                      original_audio_duration_sec: float, 
@@ -81,7 +84,7 @@ class VocalSynthesizer:
     
     def _synthesize_single_chord(self, chord_name: str) -> AudioSegment:
         """
-        Synthesize a single chord name to audio.
+        Synthesize a single chord name to audio using enhanced pyttsx3.
         
         Args:
             chord_name: Name of the chord to synthesize
@@ -137,23 +140,23 @@ class VocalSynthesizer:
     
     def set_voice_properties(self, rate: int = None, volume: float = None, voice_id: str = None):
         """
-        Update voice properties.
+        Update voice properties for pyttsx3.
         
         Args:
-            rate: Speech rate (words per minute)
+            rate: Speech rate (words per minute) - slower for singing
             volume: Volume level (0.0 to 1.0)
-            voice_id: Voice ID to use
+            voice_id: Voice ID to use - not used in pyttsx3
         """
-        if rate is not None:
-            self.engine.setProperty('rate', rate)
         if volume is not None:
             self.engine.setProperty('volume', volume)
+        if rate is not None:
+            self.engine.setProperty('rate', rate)
         if voice_id is not None:
-            self.engine.setProperty('voice', voice_id)
+            print("Note: Voice ID selection is not available in this TTS model")
     
     def get_available_voices(self) -> List[dict]:
         """
-        Get list of available voices.
+        Get list of available voices for pyttsx3.
         
         Returns:
             List of voice dictionaries with id and name
@@ -163,10 +166,11 @@ class VocalSynthesizer:
     
     def cleanup(self):
         """
-        Clean up the TTS engine.
+        Clean up the pyttsx3 engine.
         """
+        # pyttsx3 doesn't require explicit cleanup
         if hasattr(self, 'engine'):
-            self.engine.stop()
+            self.engine = None
 
     def synthesize_sung_chord_vocals(self, chord_timeline: List[Tuple[str, float, float]],
                                      melody_contour: List[Tuple[float, float]],
@@ -217,24 +221,14 @@ class VocalSynthesizer:
 
         for i, (chord_name, start_time, end_time) in enumerate(chord_timeline):
             print(f"Processing chord {i+1}/{len(chord_timeline)}: {chord_name} at {start_time}-{end_time}s")
-            
             # Find melody segment for this chord
-            segment = [f for (t, f) in melody_contour if start_time <= t < end_time and f > 0]
-            if segment:
-                target_pitch_hz = float(np.mean(segment))
-                print(f"  Target pitch: {target_pitch_hz:.1f} Hz")
-            else:
-                target_pitch_hz = 220.0  # fallback: A3
-                print(f"  Using fallback pitch: {target_pitch_hz} Hz")
-            
+            melody_points = [(t, f) for (t, f) in melody_contour if start_time <= t < end_time and f > 0]
             chord_duration_ms = int((end_time - start_time) * 1000)
-            # Syllabify for more natural TTS
             syllables = self.syllabify_chord_name(chord_name)
             tts_text = ' '.join(syllables)
-            print(f"  TTS text: '{tts_text}'")
-            
+            print(f"  Melody points: {len(melody_points)}")
             try:
-                chord_audio = self.sing_chord_name(tts_text, target_pitch_hz, chord_duration_ms)
+                chord_audio = self.sing_chord_name_to_melody_contour(tts_text, melody_points, chord_duration_ms)
                 print(f"  Generated audio length: {len(chord_audio)} ms")
                 vocals_track = vocals_track.overlay(chord_audio, position=int(start_time * 1000))
             except Exception as e:
@@ -322,13 +316,102 @@ class VocalSynthesizer:
         
         return final_audio
 
+    def sing_chord_name_to_melody_contour(self, chord_name: str, melody_segment: List[Tuple[float, float]], duration_ms: int) -> AudioSegment:
+        """
+        Generate enhanced TTS audio for chord_name and dynamically pitch-shift it to follow the melody contour.
+        Args:
+            chord_name: The chord name to sing
+            melody_segment: List of (timestamp, frequency_hz) for this chord segment
+            duration_ms: The target duration in ms
+        Returns:
+            AudioSegment of the pitch-shifted, duration-matched chord name
+        """
+        # Enhance the chord name for singing
+        enhanced_chord_name = self.enhance_for_singing(chord_name)
+        print(f"    Enhanced text: '{enhanced_chord_name}'")
+        
+        # Generate TTS audio at default pitch
+        tts_audio = self._synthesize_single_chord(enhanced_chord_name)
+        samples = np.array(tts_audio.get_array_of_samples()).astype(np.float32)
+        sr = tts_audio.frame_rate
+        orig_pitch_hz = 220.0  # A3 - typical speaking pitch
+
+        # Define a more conservative octave range for TTS voice (A3 to A4)
+        min_pitch_hz = 220.0  # A3
+        max_pitch_hz = 440.0  # A4 (just one octave range)
+
+        if not melody_segment:
+            # No melody points - return unmodified TTS audio with duration adjustment
+            final_audio = self._adjust_audio_duration(tts_audio, duration_ms)
+            return final_audio
+
+        n_segments = len(melody_segment)
+        segment_length = int(len(samples) / n_segments)
+        segments = []
+        
+        print(f"    Processing {n_segments} melody segments for '{chord_name}'")
+        
+        for i, (_, freq) in enumerate(melody_segment):
+            start = i * segment_length
+            end = (i + 1) * segment_length if i < n_segments - 1 else len(samples)
+            seg = samples[start:end]
+            
+            # Normalize the target pitch to stay within reasonable octave range
+            if freq > 0:
+                print(f"      Segment {i}: Original freq = {freq:.1f} Hz")
+                
+                # Find the closest pitch in our target range by octave shifting
+                normalized_freq = freq
+                while normalized_freq > max_pitch_hz:
+                    normalized_freq /= 2.0  # Go down an octave
+                while normalized_freq < min_pitch_hz:
+                    normalized_freq *= 2.0  # Go up an octave
+                
+                # Ensure it's within bounds
+                normalized_freq = max(min_pitch_hz, min(max_pitch_hz, normalized_freq))
+                print(f"      Segment {i}: Normalized freq = {normalized_freq:.1f} Hz")
+            else:
+                normalized_freq = orig_pitch_hz
+                print(f"      Segment {i}: Using default freq = {normalized_freq:.1f} Hz")
+            
+            # Pitch shift this segment (more conservative)
+            resample_factor = normalized_freq / orig_pitch_hz
+            # More conservative bounds (0.75 to 2.0 instead of 0.5 to 4.0)
+            resample_factor = max(0.75, min(2.0, resample_factor))
+            
+            print(f"      Segment {i}: Resample factor = {resample_factor:.2f}")
+            
+            new_length = int(len(seg) / resample_factor) if resample_factor > 0 else len(seg)
+            if new_length > 0 and len(seg) > 0:
+                shifted = resample(seg, new_length)
+            else:
+                shifted = seg
+            segments.append(shifted)
+        
+        # Concatenate all pitch-shifted segments
+        if segments:
+            all_samples = np.concatenate(segments)
+        else:
+            all_samples = samples
+        
+        # Convert back to AudioSegment
+        shifted_audio = AudioSegment(
+            all_samples.astype(np.int16).tobytes(),
+            frame_rate=int(sr),
+            sample_width=tts_audio.sample_width,
+            channels=tts_audio.channels
+        )
+        
+        # Adjust duration
+        final_audio = self._adjust_audio_duration(shifted_audio, duration_ms)
+        return final_audio
+
     def syllabify_chord_name(self, chord_name: str) -> List[str]:
         """
         Break down chord symbols into pronounceable syllables.
         E.g., 'Cmaj7' -> ['C', 'major', 'seven']
         """
         # Simple rules for common chord types
-        import re
         chord = chord_name.upper()
         root = re.match(r'^[A-G][#B]?b?', chord)
         rest = chord[len(root.group(0)):] if root else chord
@@ -358,4 +441,33 @@ class VocalSynthesizer:
                 break
         if not found and rest:
             syllables.append(rest.lower())
-        return [s for s in syllables if s] 
+        return [s for s in syllables if s]
+
+    def enhance_for_singing(self, chord_name: str) -> str:
+        """
+        Enhance chord name text to sound more like singing by elongating vowels.
+        
+        Args:
+            chord_name: Original chord name
+            
+        Returns:
+            Enhanced chord name with singing characteristics
+        """
+        # Add spaces between syllables and elongate vowels for singing
+        enhanced = chord_name.upper()
+        
+        # Elongate vowels for singing effect
+        enhanced = re.sub(r'([AEIOU])', r'\1\1\1', enhanced)  # Triple vowels
+        
+        # Add musical phrasing
+        enhanced = enhanced.replace(' ', ' ... ')  # Add pauses between words
+        
+        # Special handling for common chord types
+        enhanced = enhanced.replace('MAJOR', 'MAAAY-JOR')
+        enhanced = enhanced.replace('MINOR', 'MIIIN-OR')
+        enhanced = enhanced.replace('SEVEN', 'SEV-EN')
+        enhanced = enhanced.replace('NINE', 'NIIINE')
+        enhanced = enhanced.replace('ELEVEN', 'ELEV-EN')
+        enhanced = enhanced.replace('THIRTEEN', 'THIR-TEEN')
+        
+        return enhanced 

@@ -1,37 +1,23 @@
-# Build Dependencies
-Cython>=3.0.0
+# Core dependencies
+fastapi==0.95.2
+uvicorn==0.22.0
+python-multipart==0.0.6
+pydantic==1.10.7
 
-# Audio Processing
-librosa>=0.10.1
-pydub>=0.25.1
-scipy>=1.11.0
-numpy>=1.24.0
-madmom>=0.16.1
-# spleeter>=2.3.0  # Use CLI, not Python package
+# Audio processing
+librosa==0.11.0
+pydub==0.25.1
+scipy==1.13.1
+numpy==1.24.3
+soundfile==0.13.1
 
-# Machine Learning
-tensorflow>=2.13.0
-# pytorch>=2.0.0  # Uncomment if you prefer PyTorch over TensorFlow
+# Machine learning and chord detection
+madmom==0.16.1
+scikit-learn==1.6.1
 
-# Text-to-Speech
-gTTS>=2.3.2
-pyttsx3>=2.90
+# Text-to-speech (enhanced pyttsx3)
+pyttsx3==2.90
 
-# Web Framework
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-python-multipart>=0.0.20
-
-# Environment and Utilities
-python-dotenv>=1.0.0
-pydantic>=2.4.0
-
-# Additional Audio Processing
-essentia>=2.1.0
-librosa-essentia>=0.1.0
-
-# Development and Testing
-pytest>=7.4.0
-black>=23.0.0
-flake8>=6.0.0
-soundfile>=0.12.1
+# Utilities
+python-dotenv==1.0.0
+requests==2.31.0
