@@ -2,9 +2,14 @@
 Chord detection module using madmom's DeepChromaProcessor and CRFChordRecognitionProcessor.
 """
 
+# Apply madmom patch before importing madmom
+from .madmom_patch import apply_patch
+apply_patch()
+
 import numpy as np
 from typing import List, Tuple
-from madmom.features.chords import DeepChromaProcessor, CRFChordRecognitionProcessor
+from madmom.audio.chroma import DeepChromaProcessor
+from madmom.features.chords import CRFChordRecognitionProcessor
 
 class ChordDetector:
     """
