@@ -19,7 +19,7 @@ from utils.config import get_api_config
 from backend.audio_processing.audio_utils import preprocess_audio
 from backend.audio_processing.chord_detection import ChordDetector
 from backend.audio_processing.vocal_separation import VocalSeparator
-from backend.synthesis.vocal_synthesis import VocalSynthesizer
+from backend.synthesis.advanced_vocal_synthesis import synthesize_stable_chord_vocals_sync
 from backend.audio_processing.melody_extraction import MelodyExtractor
 
 # Get configuration
@@ -39,7 +39,6 @@ class MusicCoachProcessor:
         self.chord_detector = ChordDetector()
         self.melody_extractor = MelodyExtractor()
         self.vocal_separator = VocalSeparator()
-        self.vocal_synthesizer = VocalSynthesizer()
     
     def process_song(self, input_audio_path: str, output_audio_path: str, job_id: str) -> Dict[str, Any]:
         """
@@ -83,15 +82,23 @@ class MusicCoachProcessor:
             # Update status
             processing_status[job_id] = {"status": "synthesizing", "progress": 70, "message": "Synthesizing vocals..."}
             
-            # Step 5: Synthesize sung chord vocals (pitch-mapped)
-            print(f"Synthesizing sung chord vocals (pitch-mapped)...")
-            output_path = self.vocal_synthesizer.synthesize_sung_chord_vocals(
-                detected_chords, melody_contour, audio_duration, output_audio_path, instrumental_path
+            # Step 5: Synthesize sung chord vocals (stable, no pitch mapping)
+            print(f"Synthesizing stable chord vocals (no pitch mapping)...")
+            
+            # Use the new advanced vocal synthesizer with STABLE vocals (no pitch mapping)
+            # This is much more usable for learning chord progressions
+            vocals_output_path = synthesize_stable_chord_vocals_sync(
+                chord_timeline=detected_chords,
+                original_audio_duration_sec=audio_duration,
+                output_path=output_audio_path,
+                original_audio_path=input_audio_path,
+                tts_engine="edge-tts",  # Use Microsoft's high-quality TTS
+                voice_name="en-US-JennyNeural"  # Natural-sounding female voice
             )
             
             # Update status and store result
             processing_status[job_id] = {"status": "completed", "progress": 100, "message": "Processing complete!"}
-            processing_results[job_id] = output_path
+            processing_results[job_id] = vocals_output_path
             
             # Clean up temporary files
             if os.path.exists(processed_audio_path):
@@ -105,7 +112,7 @@ class MusicCoachProcessor:
                 "detected_chords": detected_chords,
                 "melody_contour": melody_contour,
                 "audio_duration": audio_duration,
-                "output_file_path": output_path,
+                "output_file_path": vocals_output_path,
                 "chord_count": len(detected_chords)
             }
             
