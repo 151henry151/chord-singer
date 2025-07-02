@@ -43,7 +43,7 @@ ai-music-coach/
 - **Backend**: Python with FastAPI
 - **Audio Processing**: librosa, essentia, madmom
 - **Chord Detection**: Machine learning models for chord recognition
-- **AI Voice**: gTTS, pyttsx3 for text-to-speech
+- **AI Voice**: Coqui TTS for high-quality text-to-speech
 - **Frontend**: React/Next.js (placeholder)
 - **Audio**: Web Audio API for real-time processing
 
@@ -143,7 +143,7 @@ MAX_FILE_SIZE=50MB
 ALLOWED_AUDIO_FORMATS=mp3,wav,flac,m4a
 
 # Text-to-Speech
-TTS_ENGINE=gtts
+TTS_ENGINE=coqui-tts
 TTS_LANGUAGE=en
 ```
 

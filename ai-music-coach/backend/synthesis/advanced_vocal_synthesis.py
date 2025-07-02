@@ -1,6 +1,6 @@
 """
 Advanced vocal synthesis module for generating natural-sounding sung chord names.
-Uses multiple TTS engines with singing-specific enhancements.
+Uses Coqui TTS with singing-specific enhancements.
 """
 
 import numpy as np
@@ -14,10 +14,8 @@ from scipy.signal import resample
 import librosa
 import soundfile as sf
 
-# TTS Engines
-import pyttsx3
-import edge_tts
-from gtts import gTTS
+# TTS Engine
+from TTS.api import TTS
 
 # For better audio processing
 from scipy import signal
@@ -26,69 +24,42 @@ import random
 
 class AdvancedVocalSynthesizer:
     """
-    Advanced vocal synthesizer using multiple TTS engines with singing enhancements.
-    Produces much more natural-sounding vocals compared to basic pyttsx3.
+    Advanced vocal synthesizer using Coqui TTS with singing enhancements.
+    Produces natural-sounding vocals with musical characteristics.
     """
     
     def __init__(self, 
-                 tts_engine: str = "edge-tts",
-                 voice_name: str = "en-US-JennyNeural",
+                 model_name: str = "tts_models/en/ljspeech/tacotron2-DDC",
+                 vocoder_name: str = "vocoder_models/en/ljspeech/hifigan_v2",
                  rate: float = 0.9,
                  volume: float = 0.9):
         """
         Initialize the advanced vocal synthesizer.
         
         Args:
-            tts_engine: TTS engine to use ("edge-tts", "gtts", "pyttsx3")
-            voice_name: Voice name for edge-tts (e.g., "en-US-JennyNeural")
-            rate: Speech rate (0.5-2.0 for edge-tts, words/min for pyttsx3)
+            model_name: Coqui TTS model to use
+            vocoder_name: Vocoder model for audio generation
+            rate: Speech rate (affects processing, not directly applicable to Coqui)
             volume: Volume level (0.0-1.0)
         """
-        self.tts_engine = tts_engine
-        self.voice_name = voice_name
+        self.model_name = model_name
+        self.vocoder_name = vocoder_name
         self.rate = rate
         self.volume = volume
         
-        # Initialize the selected TTS engine
-        if tts_engine == "pyttsx3":
-            self._init_pyttsx3()
-        elif tts_engine == "edge-tts":
-            self._init_edge_tts()
-        elif tts_engine == "gtts":
-            self._init_gtts()
-        else:
-            raise ValueError(f"Unsupported TTS engine: {tts_engine}")
-        
-        print(f"✓ Advanced VocalSynthesizer initialized with {tts_engine}")
-        print(f"  Voice: {voice_name}")
-        print(f"  Rate: {rate}")
-        print(f"  Volume: {volume}")
-    
-    def _init_pyttsx3(self):
-        """Initialize pyttsx3 engine."""
-        self.engine = pyttsx3.init()
-        self.engine.setProperty('rate', int(self.rate * 200))  # Convert to words/min
-        self.engine.setProperty('volume', self.volume)
-        
-        # Get available voices and set to a clear voice
-        voices = self.engine.getProperty('voices')
-        if voices:
-            for voice in voices:
-                if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
-                    self.engine.setProperty('voice', voice.id)
-                    break
-            else:
-                self.engine.setProperty('voice', voices[0].id)
-    
-    def _init_edge_tts(self):
-        """Initialize edge-tts engine."""
-        # Edge-TTS is async, so we'll handle it in the synthesis methods
-        pass
-    
-    def _init_gtts(self):
-        """Initialize gTTS engine."""
-        # gTTS is stateless, so no initialization needed
-        pass
+        # Initialize Coqui TTS
+        try:
+            self.tts = TTS(model_name=model_name, vocoder_name=vocoder_name, progress_bar=False)
+            print(f"✓ Advanced VocalSynthesizer initialized with Coqui TTS")
+            print(f"  Model: {model_name}")
+            print(f"  Vocoder: {vocoder_name}")
+            print(f"  Rate: {rate}")
+            print(f"  Volume: {volume}")
+        except Exception as e:
+            print(f"Warning: Could not load specific model, using default: {e}")
+            # Fall back to default model
+            self.tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC", progress_bar=False)
+            print("✓ Advanced VocalSynthesizer initialized with default Coqui TTS model")
     
     async def synthesize_sung_chord_vocals(self, 
                                           chord_timeline: List[Tuple[str, float, float]],
@@ -97,7 +68,7 @@ class AdvancedVocalSynthesizer:
                                           output_path: str,
                                           original_audio_path: str) -> str:
         """
-        Synthesize sung chord vocals with advanced TTS and singing enhancements.
+        Synthesize sung chord vocals with advanced Coqui TTS and singing enhancements.
         
         Args:
             chord_timeline: List of (chord_name, start_time, end_time)
@@ -110,8 +81,8 @@ class AdvancedVocalSynthesizer:
             Path to the generated audio file
         """
         print(f"🎵 Synthesizing advanced vocals for {len(chord_timeline)} chords")
-        print(f"   TTS Engine: {self.tts_engine}")
-        print(f"   Voice: {self.voice_name}")
+        print(f"   TTS Engine: Coqui TTS")
+        print(f"   Model: {self.model_name}")
         
         # Load the original instrumental track
         try:
@@ -138,13 +109,8 @@ class AdvancedVocalSynthesizer:
             print(f"   Enhanced text: '{enhanced_chord_name}'")
             
             try:
-                # Generate audio with the selected TTS engine
-                if self.tts_engine == "edge-tts":
-                    chord_audio = await self._synthesize_with_edge_tts(enhanced_chord_name)
-                elif self.tts_engine == "gtts":
-                    chord_audio = await self._synthesize_with_gtts(enhanced_chord_name)
-                else:  # pyttsx3
-                    chord_audio = self._synthesize_with_pyttsx3(enhanced_chord_name)
+                # Generate audio with Coqui TTS
+                chord_audio = self._synthesize_with_coqui_tts(enhanced_chord_name)
                 
                 # Apply singing enhancements
                 chord_audio = self._apply_singing_enhancements(
@@ -174,17 +140,14 @@ class AdvancedVocalSynthesizer:
         
         return output_path
     
-    async def _synthesize_with_edge_tts(self, text: str) -> AudioSegment:
-        """Synthesize text using edge-tts (highest quality)."""
+    def _synthesize_with_coqui_tts(self, text: str) -> AudioSegment:
+        """Synthesize text using Coqui TTS."""
         try:
-            # Fix rate format for edge-tts (should be like "+10%" or "-10%")
-            rate_str = f"{int((self.rate - 1.0) * 100):+d}%"
-            communicate = edge_tts.Communicate(text, self.voice_name, rate=rate_str)
-            
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
                 temp_path = temp_file.name
             
-            await communicate.save(temp_path)
+            # Generate speech with Coqui TTS
+            self.tts.tts_to_file(text=text, file_path=temp_path)
             
             # Load the generated audio
             audio = AudioSegment.from_wav(temp_path)
@@ -195,57 +158,8 @@ class AdvancedVocalSynthesizer:
             return audio
             
         except Exception as e:
-            print(f"Edge-TTS error: {e}")
-            # Fallback to pyttsx3
-            return self._synthesize_with_pyttsx3(text)
-    
-    async def _synthesize_with_gtts(self, text: str) -> AudioSegment:
-        """Synthesize text using gTTS (Google TTS)."""
-        try:
-            tts = gTTS(text=text, lang='en', slow=False)
-            
-            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
-                temp_path = temp_file.name
-            
-            tts.save(temp_path)
-            
-            # Load the generated audio
-            audio = AudioSegment.from_mp3(temp_path)
-            
-            # Clean up
-            os.unlink(temp_path)
-            
-            return audio
-            
-        except Exception as e:
-            print(f"gTTS error: {e}")
-            # Fallback to pyttsx3
-            return self._synthesize_with_pyttsx3(text)
-    
-    def _synthesize_with_pyttsx3(self, text: str) -> AudioSegment:
-        """Synthesize text using pyttsx3 (fallback)."""
-        try:
-            # Make sure engine is initialized
-            if not hasattr(self, 'engine') or self.engine is None:
-                self._init_pyttsx3()
-            
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_path = temp_file.name
-            
-            self.engine.save_to_file(text, temp_path)
-            self.engine.runAndWait()
-            
-            # Load the generated audio
-            audio = AudioSegment.from_wav(temp_path)
-            
-            # Clean up
-            os.unlink(temp_path)
-            
-            return audio
-            
-        except Exception as e:
-            print(f"pyttsx3 error: {e}")
-            # Return silence as last resort
+            print(f"Coqui TTS error: {e}")
+            # Return silence as fallback
             return AudioSegment.silent(duration=1000)
     
     def _apply_singing_enhancements(self, 
@@ -294,7 +208,6 @@ class AdvancedVocalSynthesizer:
                            duration_ms: int) -> np.ndarray:
         """
         Apply pitch mapping to follow the melody contour with proper range normalization.
-        This fixes the extreme octave jumps and chipmunk effect.
         """
         if not melody_points or len(samples) < 2:
             return samples
@@ -306,10 +219,9 @@ class AdvancedVocalSynthesizer:
         
         target_pitch = np.mean(valid_freqs)
         
-        # FIXED: Implement proper pitch range clamping for TTS
-        # Human vocal range is roughly 80-400 Hz for comfortable speaking/singing
-        MIN_VOCAL_PITCH = 80.0   # Hz (roughly E2)
-        MAX_VOCAL_PITCH = 400.0  # Hz (roughly G4)
+        # Human vocal range for comfortable singing
+        MIN_VOCAL_PITCH = 150.0   # Hz
+        MAX_VOCAL_PITCH = 500.0   # Hz
         
         # Normalize the target pitch to stay within vocal range
         normalized_pitch = self._normalize_to_vocal_octave(target_pitch)
@@ -317,22 +229,18 @@ class AdvancedVocalSynthesizer:
         # Clamp to reasonable vocal range
         normalized_pitch = max(MIN_VOCAL_PITCH, min(MAX_VOCAL_PITCH, normalized_pitch))
         
-        # Estimate original TTS pitch (typical speaking pitch around 220 Hz)
-        original_pitch = 220.0
+        # Estimate original Coqui TTS pitch
+        original_pitch = 250.0  # Typical Coqui TTS pitch
         
-        # Calculate pitch shift factor (much more conservative now)
+        # Calculate pitch shift factor with conservative limits
         pitch_factor = normalized_pitch / original_pitch
-        
-        # FIXED: Use much more conservative pitch shift limits
-        # Instead of 0.5-2.0 (which allows 2 octaves), use 0.8-1.5 (about 1 octave)
-        pitch_factor = max(0.8, min(1.5, pitch_factor))
+        pitch_factor = max(0.8, min(1.4, pitch_factor))
         
         print(f"   🎵 Pitch mapping: {original_pitch:.1f} Hz → {normalized_pitch:.1f} Hz (factor: {pitch_factor:.2f})")
-        print(f"   🎵 Original melody pitch: {target_pitch:.1f} Hz (normalized to vocal range)")
         
         # Apply pitch shift using resampling
         new_length = int(len(samples) / pitch_factor)
-        if new_length > 1:  # Ensure we have at least 2 samples
+        if new_length > 1:
             shifted = resample(samples, new_length)
         else:
             shifted = samples
@@ -341,12 +249,10 @@ class AdvancedVocalSynthesizer:
     
     def _normalize_to_vocal_octave(self, frequency: float) -> float:
         """
-        Normalize musical frequency to comfortable vocal range (4th octave).
-        This prevents extreme octave jumps.
+        Normalize musical frequency to comfortable vocal range.
         """
-        # Target vocal range: C4 (261.63 Hz) to C5 (523.25 Hz)
-        TARGET_MIN = 200.0  # Hz (below C4)
-        TARGET_MAX = 500.0  # Hz (above C5)
+        TARGET_MIN = 180.0  # Hz
+        TARGET_MAX = 450.0  # Hz
         
         # Transpose to comfortable vocal range
         while frequency < TARGET_MIN:
@@ -356,20 +262,14 @@ class AdvancedVocalSynthesizer:
         
         return frequency
     
-    def _smooth_pitch_transition(self, current_pitch: float, target_pitch: float, smoothing_factor: float = 0.3) -> float:
-        """
-        Smooth pitch transitions to prevent sudden jumps.
-        """
-        return current_pitch + (target_pitch - current_pitch) * smoothing_factor
-    
     def _apply_singing_effects(self, samples: np.ndarray, sr: int) -> np.ndarray:
         """Apply singing-specific audio effects."""
         if len(samples) < 2:
             return samples
             
-        # 1. Add slight vibrato for more natural singing
-        vibrato_rate = 5.0  # Hz
-        vibrato_depth = 0.02  # 2% pitch modulation
+        # 1. Add subtle vibrato for more natural singing
+        vibrato_rate = 4.5  # Hz
+        vibrato_depth = 0.015  # 1.5% pitch modulation
         
         t = np.arange(len(samples)) / sr
         vibrato = np.sin(2 * np.pi * vibrato_rate * t) * vibrato_depth
@@ -379,17 +279,16 @@ class AdvancedVocalSynthesizer:
         samples = samples * np.cos(phase) + np.roll(samples, 1) * np.sin(phase)
         
         # 2. Add subtle reverb for more natural sound
-        # Simple convolution with a short impulse response
-        reverb_length = int(0.1 * sr)  # 100ms reverb
+        reverb_length = int(0.08 * sr)  # 80ms reverb
         if reverb_length > 0:
-            reverb_ir = np.exp(-np.arange(reverb_length) / (0.05 * sr))
+            reverb_ir = np.exp(-np.arange(reverb_length) / (0.04 * sr))
             reverb_ir = reverb_ir / np.sum(reverb_ir)
             
             samples = np.convolve(samples, reverb_ir, mode='same')
         
         # 3. Apply gentle compression to even out dynamics
-        threshold = 0.7
-        ratio = 3.0
+        threshold = 0.6
+        ratio = 2.5
         
         # Simple soft-knee compression
         gain_reduction = np.where(
@@ -397,17 +296,13 @@ class AdvancedVocalSynthesizer:
             (np.abs(samples) - threshold) * (1 - 1/ratio),
             0
         )
-        samples = samples * (1 - gain_reduction)
+        samples = samples * (1 - gain_reduction * 0.5)
         
-        # 4. Add subtle breathiness (high-frequency noise)
-        breath_noise = np.random.normal(0, 0.01, len(samples))
-        try:
-            breath_filter = signal.butter(4, 0.3, btype='high')[0]
-            breath_noise = signal.filtfilt(breath_filter[0], breath_filter[1], breath_noise)
-            samples = samples + breath_noise
-        except:
-            # If filtering fails, just add the noise
-            samples = samples + breath_noise
+        # 4. Add subtle breathiness (controlled high-frequency content)
+        breath_noise = np.random.normal(0, 0.008, len(samples))
+        # Simple high-pass effect
+        breath_noise = breath_noise - np.roll(breath_noise, 1) * 0.95
+        samples = samples + breath_noise
         
         return samples
     
@@ -442,8 +337,8 @@ class AdvancedVocalSynthesizer:
         # Add musical phrasing and elongation
         enhanced = enhanced.replace(' ', ' ... ')
         
-        # Elongate vowels for singing effect (but more subtly than before)
-        enhanced = re.sub(r'([AEIOU])', r'\1\1', enhanced)  # Double vowels instead of triple
+        # Elongate vowels for singing effect (more subtly)
+        enhanced = re.sub(r'([AEIOU])', r'\1\1', enhanced)
         
         # Add musical emphasis to common chord types
         enhanced = enhanced.replace('MAJOR', 'MAAY-JOR')
@@ -459,57 +354,40 @@ class AdvancedVocalSynthesizer:
         return enhanced
     
     def get_available_voices(self) -> List[Dict[str, Any]]:
-        """Get list of available voices for the current TTS engine."""
-        if self.tts_engine == "edge-tts":
-            try:
-                # Use a new event loop for edge-tts
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                voices = loop.run_until_complete(edge_tts.list_voices())
-                loop.close()
-                
-                return [
-                    {
-                        'id': voice['ShortName'],
-                        'name': f"{voice['ShortName']} ({voice['Gender']})",
-                        'language': voice['Locale'],
-                        'gender': voice['Gender']
-                    }
-                    for voice in voices
-                ]
-            except Exception as e:
-                print(f"Error getting edge-tts voices: {e}")
-                return []
-        elif self.tts_engine == "pyttsx3":
-            try:
-                if not hasattr(self, 'engine') or self.engine is None:
-                    self._init_pyttsx3()
-                voices = self.engine.getProperty('voices')
-                return [{'id': voice.id, 'name': voice.name} for voice in voices]
-            except Exception as e:
-                print(f"Error getting pyttsx3 voices: {e}")
-                return []
-        else:
+        """Get list of available voices for Coqui TTS."""
+        try:
+            available_models = TTS.list_models()
+            return [
+                {
+                    'id': model,
+                    'name': model.split('/')[-1],
+                    'language': 'en' if '/en/' in model else 'other',
+                    'type': 'tts'
+                }
+                for model in available_models
+                if 'tts_models' in model and '/en/' in model
+            ]
+        except Exception as e:
+            print(f"Error getting Coqui TTS models: {e}")
             return []
     
-    def set_voice_properties(self, rate: float = None, volume: float = None, voice_name: str = None):
+    def set_voice_properties(self, rate: float = None, volume: float = None, model_name: str = None):
         """Update voice properties."""
         if rate is not None:
             self.rate = rate
+            print(f"Rate updated to: {rate}")
         if volume is not None:
             self.volume = volume
-        if voice_name is not None:
-            self.voice_name = voice_name
-        
-        # Update the engine if it's pyttsx3
-        if self.tts_engine == "pyttsx3" and hasattr(self, 'engine') and self.engine is not None:
-            self.engine.setProperty('rate', int(self.rate * 200))
-            self.engine.setProperty('volume', self.volume)
+            print(f"Volume updated to: {volume}")
+        if model_name is not None:
+            print(f"Note: Model switching requires reinitializing TTS engine")
+            self.model_name = model_name
     
     def cleanup(self):
-        """Clean up resources."""
-        if self.tts_engine == "pyttsx3" and hasattr(self, 'engine'):
-            self.engine = None
+        """Clean up Coqui TTS resources."""
+        if hasattr(self, 'tts'):
+            self.tts = None
+            print("✓ Coqui TTS resources cleaned up")
     
     async def synthesize_stable_chord_vocals(self, 
                                            chord_timeline: List[Tuple[str, float, float]],
@@ -517,8 +395,7 @@ class AdvancedVocalSynthesizer:
                                            output_path: str,
                                            original_audio_path: str) -> str:
         """
-        Synthesize chord vocals WITHOUT pitch mapping - stable, clear voice for learning.
-        This is much more usable than trying to follow the melody.
+        Synthesize stable chord vocals without pitch mapping (easier to follow).
         
         Args:
             chord_timeline: List of (chord_name, start_time, end_time)
@@ -529,10 +406,7 @@ class AdvancedVocalSynthesizer:
         Returns:
             Path to the generated audio file
         """
-        print(f"🎵 Synthesizing STABLE vocals for {len(chord_timeline)} chords (no pitch mapping)")
-        print(f"   TTS Engine: {self.tts_engine}")
-        print(f"   Voice: {self.voice_name}")
-        print(f"   Note: Using stable pitch for clear chord name pronunciation")
+        print(f"🎵 Synthesizing stable chord vocals for {len(chord_timeline)} chords")
         
         # Load the original instrumental track
         try:
@@ -550,20 +424,15 @@ class AdvancedVocalSynthesizer:
             
             chord_duration_ms = int((end_time - start_time) * 1000)
             
-            # Enhance chord name for singing (but keep it simple)
+            # Enhance chord name for singing (simpler for stable vocals)
             enhanced_chord_name = self._enhance_for_singing_simple(chord_name)
             print(f"   Enhanced text: '{enhanced_chord_name}'")
             
             try:
-                # Generate audio with the selected TTS engine (no pitch mapping)
-                if self.tts_engine == "edge-tts":
-                    chord_audio = await self._synthesize_with_edge_tts(enhanced_chord_name)
-                elif self.tts_engine == "gtts":
-                    chord_audio = await self._synthesize_with_gtts(enhanced_chord_name)
-                else:  # pyttsx3
-                    chord_audio = self._synthesize_with_pyttsx3(enhanced_chord_name)
+                # Generate audio with Coqui TTS
+                chord_audio = self._synthesize_with_coqui_tts(enhanced_chord_name)
                 
-                # Apply only basic singing enhancements (no pitch mapping)
+                # Apply basic singing enhancements (no pitch mapping)
                 chord_audio = self._apply_basic_singing_enhancements(chord_audio, chord_duration_ms)
                 
                 # Overlay at the correct position
@@ -577,9 +446,9 @@ class AdvancedVocalSynthesizer:
                 print(f"   ✗ Error generating audio for '{chord_name}': {e}")
                 continue
         
-        # Mix instrumental and vocals with better balance
-        instrumental_track = instrumental_track - 8  # Reduce instrumental volume
-        vocals_track = vocals_track + 3  # Boost vocals slightly
+        # Mix instrumental and vocals
+        instrumental_track = instrumental_track - 10  # Reduce instrumental volume more
+        vocals_track = vocals_track + 5  # Boost vocals more for clarity
         
         combined_audio = instrumental_track.overlay(vocals_track)
         
@@ -591,39 +460,30 @@ class AdvancedVocalSynthesizer:
     
     def _enhance_for_singing_simple(self, chord_name: str) -> str:
         """
-        Simple enhancement for chord names - clear and understandable.
+        Simple enhancement for stable chord vocals.
         """
-        # Convert to uppercase for consistency
         enhanced = chord_name.upper()
         
-        # Add clear spacing between syllables
-        enhanced = enhanced.replace(' ', ' ... ')
+        # Add spaces between chord parts
+        enhanced = enhanced.replace('MAJ', ' MAJOR')
+        enhanced = enhanced.replace('MIN', ' MINOR')
+        enhanced = enhanced.replace('7', ' SEVEN')
+        enhanced = enhanced.replace('9', ' NINE')
         
-        # Simple vowel elongation (not as extreme)
-        enhanced = re.sub(r'([AEIOU])', r'\1', enhanced)  # Single vowels for clarity
-        
-        # Clear pronunciation for common chord types
-        enhanced = enhanced.replace('MAJOR', 'MAY-JOR')
-        enhanced = enhanced.replace('MINOR', 'MIN-OR')
-        enhanced = enhanced.replace('SEVEN', 'SEV-EN')
-        enhanced = enhanced.replace('NINE', 'NINE')
-        enhanced = enhanced.replace('ELEVEN', 'ELEV-EN')
-        enhanced = enhanced.replace('THIRTEEN', 'THIR-TEEN')
-        
-        # Add clear pauses
-        enhanced = enhanced.replace('-', ' ... ')
+        # Clean up double spaces
+        enhanced = ' '.join(enhanced.split())
         
         return enhanced
     
     def _apply_basic_singing_enhancements(self, audio: AudioSegment, duration_ms: int) -> AudioSegment:
         """
-        Apply only basic singing enhancements without pitch mapping.
+        Apply basic singing enhancements without pitch mapping.
         """
         # Convert to numpy array for processing
         samples = np.array(audio.get_array_of_samples()).astype(np.float32)
         sr = audio.frame_rate
         
-        # Apply only subtle effects (no pitch mapping)
+        # Apply subtle singing effects
         samples = self._apply_subtle_singing_effects(samples, sr)
         
         # Convert back to AudioSegment
@@ -640,36 +500,37 @@ class AdvancedVocalSynthesizer:
         return enhanced_audio
     
     def _apply_subtle_singing_effects(self, samples: np.ndarray, sr: int) -> np.ndarray:
-        """Apply only subtle singing effects (no pitch manipulation)."""
+        """Apply subtle singing effects for stable vocals."""
         if len(samples) < 2:
             return samples
             
-        # 1. Very subtle vibrato for naturalness
-        vibrato_rate = 3.0  # Hz (slower)
-        vibrato_depth = 0.01  # 1% pitch modulation (very subtle)
+        # 1. Very subtle vibrato
+        vibrato_rate = 3.5  # Hz
+        vibrato_depth = 0.01  # 1% pitch modulation
         
         t = np.arange(len(samples)) / sr
         vibrato = np.sin(2 * np.pi * vibrato_rate * t) * vibrato_depth
         
-        # Apply vibrato using phase modulation
-        phase = np.cumsum(vibrato)
-        samples = samples * np.cos(phase) + np.roll(samples, 1) * np.sin(phase)
+        # Apply very light vibrato
+        phase = np.cumsum(vibrato) * 0.5
+        samples = samples * (1 + phase * 0.1)
         
-        # 2. Very subtle reverb
-        reverb_length = int(0.05 * sr)  # 50ms reverb (shorter)
+        # 2. Light reverb
+        reverb_length = int(0.05 * sr)  # 50ms reverb
         if reverb_length > 0:
-            reverb_ir = np.exp(-np.arange(reverb_length) / (0.025 * sr))
+            reverb_ir = np.exp(-np.arange(reverb_length) / (0.03 * sr))
             reverb_ir = reverb_ir / np.sum(reverb_ir)
             
-            samples = np.convolve(samples, reverb_ir, mode='same')
+            reverb_signal = np.convolve(samples, reverb_ir, mode='same')
+            samples = samples * 0.8 + reverb_signal * 0.2
         
         # 3. Gentle compression
-        threshold = 0.8
+        threshold = 0.7
         ratio = 2.0
         
         gain_reduction = np.where(
             np.abs(samples) > threshold,
-            (np.abs(samples) - threshold) * (1 - 1/ratio),
+            (np.abs(samples) - threshold) * (1 - 1/ratio) * 0.3,
             0
         )
         samples = samples * (1 - gain_reduction)
@@ -677,78 +538,75 @@ class AdvancedVocalSynthesizer:
         return samples
 
 
-# Convenience function for non-async usage
 def synthesize_sung_chord_vocals_sync(chord_timeline: List[Tuple[str, float, float]],
                                      melody_contour: List[Tuple[float, float]],
                                      original_audio_duration_sec: float,
                                      output_path: str,
                                      original_audio_path: str,
-                                     tts_engine: str = "edge-tts",
-                                     voice_name: str = "en-US-JennyNeural") -> str:
+                                     model_name: str = "tts_models/en/ljspeech/tacotron2-DDC",
+                                     vocoder_name: str = "vocoder_models/en/ljspeech/hifigan_v2") -> str:
     """
     Synchronous wrapper for synthesize_sung_chord_vocals.
     
     Args:
         chord_timeline: List of (chord_name, start_time, end_time)
         melody_contour: List of (timestamp_sec, frequency_hz)
-        original_audio_duration_sec: Total duration of the original audio
-        output_path: Path where the output audio will be saved
-        original_audio_path: Path to the original audio file
-        tts_engine: TTS engine to use
-        voice_name: Voice name for edge-tts
+        original_audio_duration_sec: Duration of original audio
+        output_path: Output file path
+        original_audio_path: Original audio file path
+        model_name: Coqui TTS model to use
+        vocoder_name: Vocoder model to use
         
     Returns:
-        Path to the generated audio file
+        Path to generated audio file
     """
-    synthesizer = AdvancedVocalSynthesizer(tts_engine=tts_engine, voice_name=voice_name)
+    synthesizer = AdvancedVocalSynthesizer(
+        model_name=model_name,
+        vocoder_name=vocoder_name
+    )
     
     try:
-        # Use a new event loop for the async call
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(synthesizer.synthesize_sung_chord_vocals(
-            chord_timeline, melody_contour, original_audio_duration_sec, 
+        # Run the async function
+        result = asyncio.run(synthesizer.synthesize_sung_chord_vocals(
+            chord_timeline, melody_contour, original_audio_duration_sec,
             output_path, original_audio_path
         ))
-        loop.close()
         return result
     finally:
         synthesizer.cleanup()
 
 
-# Convenience function for stable vocals (no pitch mapping)
 def synthesize_stable_chord_vocals_sync(chord_timeline: List[Tuple[str, float, float]],
                                        original_audio_duration_sec: float,
                                        output_path: str,
                                        original_audio_path: str,
-                                       tts_engine: str = "edge-tts",
-                                       voice_name: str = "en-US-JennyNeural") -> str:
+                                       model_name: str = "tts_models/en/ljspeech/tacotron2-DDC",
+                                       vocoder_name: str = "vocoder_models/en/ljspeech/hifigan_v2") -> str:
     """
-    Synchronous wrapper for synthesize_stable_chord_vocals (no pitch mapping).
-    This produces stable, clear vocals perfect for learning chord progressions.
+    Synchronous wrapper for synthesize_stable_chord_vocals.
     
     Args:
         chord_timeline: List of (chord_name, start_time, end_time)
-        original_audio_duration_sec: Total duration of the original audio
-        output_path: Path where the output audio will be saved
-        original_audio_path: Path to the original audio file
-        tts_engine: TTS engine to use
-        voice_name: Voice name for edge-tts
+        original_audio_duration_sec: Duration of original audio
+        output_path: Output file path
+        original_audio_path: Original audio file path
+        model_name: Coqui TTS model to use
+        vocoder_name: Vocoder model to use
         
     Returns:
-        Path to the generated audio file
+        Path to generated audio file
     """
-    synthesizer = AdvancedVocalSynthesizer(tts_engine=tts_engine, voice_name=voice_name)
+    synthesizer = AdvancedVocalSynthesizer(
+        model_name=model_name,
+        vocoder_name=vocoder_name
+    )
     
     try:
-        # Use a new event loop for the async call
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(synthesizer.synthesize_stable_chord_vocals(
-            chord_timeline, original_audio_duration_sec, 
+        # Run the async function
+        result = asyncio.run(synthesizer.synthesize_stable_chord_vocals(
+            chord_timeline, original_audio_duration_sec,
             output_path, original_audio_path
         ))
-        loop.close()
         return result
     finally:
         synthesizer.cleanup()

@@ -83,7 +83,7 @@ class ProcessingRequest(BaseModel):
             "example": {
                 "audio_file_id": "file_12345",
                 "options": {
-                    "tts_engine": "gtts",
+                    "tts_engine": "coqui-tts",
                     "language": "en",
                     "output_format": "wav"
                 }

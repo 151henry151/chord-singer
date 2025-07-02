@@ -92,8 +92,8 @@ class MusicCoachProcessor:
                 original_audio_duration_sec=audio_duration,
                 output_path=output_audio_path,
                 original_audio_path=input_audio_path,
-                tts_engine="edge-tts",  # Use Microsoft's high-quality TTS
-                voice_name="en-US-JennyNeural"  # Natural-sounding female voice
+                model_name="tts_models/en/ljspeech/tacotron2-DDC",  # Use Coqui TTS
+                vocoder_name="vocoder_models/en/ljspeech/hifigan_v2"  # Natural-sounding vocoder
             )
             
             # Update status and store result
