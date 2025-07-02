@@ -10,7 +10,7 @@ The AI Music Coach will evolve through several phases:
     Input: User uploads a song.
     Processing: The system detects chords within the song.
     Output: Spoken chord names are generated in rhythm, without following the melody yet.
-    Voice: Simple Text-to-Speech (TTS) models like Coqui or pyttsx3 will be used.
+    Voice: Coqui TTS will be used for high-quality text-to-speech synthesis.
     Libraries: PyDub and Librosa for audio handling; Madmom or a custom ML model for chord detection.
     Phase 2: Singing Capability:
     Enhancement: Melody extraction from the input song.
@@ -84,11 +84,9 @@ C. Vocal Synthesis Engine
 
 The goal is to generate "singing voice that replaces lyrics with chord names" and "follow melody contour." (AI Music Coach: Structure and Implementation Plan)
 
-    Text-to-Speech (TTS) Engines:
+    Text-to-Speech (TTS) Engine:
 
-    Coqui TTS: An open-source speech synthesis toolkit. Its XTTS model supports up to 16 languages. Users can "train your own model" by gathering voice recordings and following their documentation. (Coqui TTS Local Installation Tutorial - Reddit, Training a Model - TTS 0.22.0)
-    pyttsx3: A simple offline TTS library for Python.
-    gTTS (Google Text-to-Speech): A Python library and CLI tool to interface with Google Translate's text-to-speech API.
+    Coqui TTS: An open-source speech synthesis toolkit. Its XTTS model supports up to 16 languages. Users can "train your own model" by gathering voice recordings and following their documentation. This is the sole TTS engine used in the system for high-quality, natural-sounding voice synthesis. (Coqui TTS Local Installation Tutorial - Reddit, Training a Model - TTS 0.22.0)
     Advanced TTS Models: "Tacotron 2, WaveNet/WaveGlow or commercial APIs" are considered for "highly natural-sounding chord names that can truly 'sing' and follow a melody's nuances." (AI Guitar Coach: Technical Blueprint) These models typically involve complex pipelines but can achieve "intelligible and natural audios which are indistinguishable from human recordings." (Text to Speech Synthesis - arXiv) Diffusion-based models like Grad-TTS and DiffSinger are emerging for "expressive singing." (Audio Toolchain for Music Analysis and Synthesis, Text to Speech Synthesis - arXiv)
 
     Pitch Shifting and Manipulation:
@@ -133,7 +131,7 @@ Example Workflow (Pseudocode):
 
     vocalize_and_map_chords(chord_sequence, melody_contour, original_audio_duration_sec):
 
-    Generates a vocal track using a TTS engine (e.g., gTTS/pyttsx3).
+    Generates a vocal track using Coqui TTS.
     For each chord, determines the corresponding melodic segment.
     Calculates a target pitch (e.g., average pitch) for the chord's duration based on the melody.
     "Important: Pitch shift the generated audio" using audio processing techniques to align with the melody.
