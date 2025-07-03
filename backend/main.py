@@ -91,9 +91,9 @@ class MusicCoachProcessor:
                 chord_timeline=detected_chords,
                 original_audio_duration_sec=audio_duration,
                 output_path=output_audio_path,
-                original_audio_path=instrumental_path,  # Use instrumental track as base
-                tts_engine="coqui-tts",  # Use Coqui TTS for high-quality singing
-                voice_name="en-US-JennyNeural"  # High-quality neural voice
+                original_audio_path=input_audio_path,
+                model_name="tts_models/en/ljspeech/tacotron2-DDC",  # Use Coqui TTS
+                vocoder_name="vocoder_models/en/ljspeech/hifigan_v2"  # Natural-sounding vocoder
             )
             
             # Update status and store result

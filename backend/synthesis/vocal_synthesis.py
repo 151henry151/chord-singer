@@ -1,47 +1,40 @@
 """
-Vocal synthesis module for generating sung chord names using enhanced pyttsx3.
+Vocal synthesis module for generating sung chord names using Coqui TTS.
 """
 
 import numpy as np
 from typing import List, Tuple
-import pyttsx3
-from pydub import AudioSegment
 import tempfile
 import os
 from scipy.signal import resample
 import re
+from pydub import AudioSegment
+from TTS.api import TTS
 
 
 class VocalSynthesizer:
     """
-    A class for synthesizing sung chord names using enhanced pyttsx3 with singing characteristics.
+    A class for synthesizing sung chord names using Coqui TTS with singing characteristics.
     """
     
-    def __init__(self, voice_rate: int = 120, voice_volume: float = 0.9):
+    def __init__(self, model_name: str = "tts_models/en/ljspeech/tacotron2-DDC", 
+                 vocoder_name: str = "vocoder_models/en/ljspeech/hifigan_v2"):
         """
-        Initialize the vocal synthesizer with enhanced pyttsx3 engine.
+        Initialize the vocal synthesizer with Coqui TTS.
         
         Args:
-            voice_rate: Speech rate (words per minute) - slower for singing
-            voice_volume: Volume level (0.0 to 1.0)
+            model_name: Coqui TTS model to use
+            vocoder_name: Vocoder model to use for audio generation
         """
-        self.engine = pyttsx3.init()
-        self.engine.setProperty('rate', voice_rate)
-        self.engine.setProperty('volume', voice_volume)
-        
-        # Get available voices and set to a clear voice if available
-        voices = self.engine.getProperty('voices')
-        if voices:
-            # Prefer a female voice if available for clearer pronunciation
-            for voice in voices:
-                if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
-                    self.engine.setProperty('voice', voice.id)
-                    break
-            else:
-                # Use the first available voice
-                self.engine.setProperty('voice', voices[0].id)
-        
-        print("✓ Enhanced pyttsx3 TTS initialized for singing")
+        try:
+            # Initialize Coqui TTS
+            self.tts = TTS(model_name=model_name, vocoder_name=vocoder_name, progress_bar=False)
+            print(f"✓ Coqui TTS initialized with model: {model_name}")
+        except Exception as e:
+            print(f"Warning: Could not load specific model, using default: {e}")
+            # Fall back to default model
+            self.tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC", progress_bar=False)
+            print("✓ Coqui TTS initialized with default model")
     
     def synthesize_spoken_chord_vocals(self, chord_timeline: List[Tuple[str, float, float]], 
                                      original_audio_duration_sec: float, 
@@ -84,7 +77,7 @@ class VocalSynthesizer:
     
     def _synthesize_single_chord(self, chord_name: str) -> AudioSegment:
         """
-        Synthesize a single chord name to audio using enhanced pyttsx3.
+        Synthesize a single chord name to audio using Coqui TTS.
         
         Args:
             chord_name: Name of the chord to synthesize
@@ -98,8 +91,7 @@ class VocalSynthesizer:
                 temp_path = temp_file.name
             
             # Generate speech and save to temporary file
-            self.engine.save_to_file(chord_name, temp_path)
-            self.engine.runAndWait()
+            self.tts.tts_to_file(text=chord_name, file_path=temp_path)
             
             # Load the generated audio
             chord_audio = AudioSegment.from_wav(temp_path)
@@ -140,37 +132,41 @@ class VocalSynthesizer:
     
     def set_voice_properties(self, rate: int = None, volume: float = None, voice_id: str = None):
         """
-        Update voice properties for pyttsx3.
+        Update voice properties for Coqui TTS.
         
         Args:
-            rate: Speech rate (words per minute) - slower for singing
+            rate: Speech rate (not directly applicable to Coqui TTS)
             volume: Volume level (0.0 to 1.0)
-            voice_id: Voice ID to use - not used in pyttsx3
+            voice_id: Voice model to use
         """
         if volume is not None:
-            self.engine.setProperty('volume', volume)
+            print(f"Note: Volume adjustment will be applied during audio processing")
         if rate is not None:
-            self.engine.setProperty('rate', rate)
+            print(f"Note: Rate adjustment not directly supported in Coqui TTS")
         if voice_id is not None:
-            print("Note: Voice ID selection is not available in this TTS model")
+            print(f"Note: Voice switching requires reinitializing TTS model")
     
     def get_available_voices(self) -> List[dict]:
         """
-        Get list of available voices for pyttsx3.
+        Get list of available voices for Coqui TTS.
         
         Returns:
             List of voice dictionaries with id and name
         """
-        voices = self.engine.getProperty('voices')
-        return [{'id': voice.id, 'name': voice.name} for voice in voices]
+        # Return available Coqui TTS models
+        available_models = TTS.list_models()
+        return [
+            {'id': model, 'name': model.split('/')[-1]} 
+            for model in available_models 
+            if 'tts_models' in model and '/en/' in model
+        ]
     
     def cleanup(self):
         """
-        Clean up the pyttsx3 engine.
+        Clean up the Coqui TTS resources.
         """
-        # pyttsx3 doesn't require explicit cleanup
-        if hasattr(self, 'engine'):
-            self.engine = None
+        if hasattr(self, 'tts'):
+            self.tts = None
 
     def synthesize_sung_chord_vocals(self, chord_timeline: List[Tuple[str, float, float]],
                                      melody_contour: List[Tuple[float, float]],
@@ -284,15 +280,14 @@ class VocalSynthesizer:
         samples = np.array(tts_audio.get_array_of_samples()).astype(np.float32)
         sr = tts_audio.frame_rate
         
-        # Estimate original pitch - TTS typically generates around 220-440 Hz (A3-A4)
-        # Let's use a more accurate estimate based on typical human speech
-        orig_pitch_hz = 220.0  # A3 - typical speaking pitch
+        # Estimate original pitch - Coqui TTS typically generates around 200-300 Hz
+        orig_pitch_hz = 250.0  # Typical Coqui TTS pitch
         
         # Compute resample factor for pitch shifting
         resample_factor = target_pitch_hz / orig_pitch_hz
         
-        # Clamp the resample factor to reasonable bounds (0.5 to 4.0)
-        resample_factor = max(0.5, min(4.0, resample_factor))
+        # Clamp the resample factor to reasonable bounds (0.5 to 2.0)
+        resample_factor = max(0.5, min(2.0, resample_factor))
         
         print(f"    Pitch shift: {orig_pitch_hz:.1f} Hz -> {target_pitch_hz:.1f} Hz (factor: {resample_factor:.2f})")
         
@@ -334,11 +329,11 @@ class VocalSynthesizer:
         tts_audio = self._synthesize_single_chord(enhanced_chord_name)
         samples = np.array(tts_audio.get_array_of_samples()).astype(np.float32)
         sr = tts_audio.frame_rate
-        orig_pitch_hz = 220.0  # A3 - typical speaking pitch
+        orig_pitch_hz = 250.0  # Typical Coqui TTS pitch
 
-        # Define a more conservative octave range for TTS voice (A3 to A4)
-        min_pitch_hz = 220.0  # A3
-        max_pitch_hz = 440.0  # A4 (just one octave range)
+        # Define a conservative octave range for vocal synthesis
+        min_pitch_hz = 200.0  # Lower bound
+        max_pitch_hz = 500.0  # Upper bound
 
         if not melody_segment:
             # No melody points - return unmodified TTS audio with duration adjustment
@@ -356,7 +351,7 @@ class VocalSynthesizer:
             end = (i + 1) * segment_length if i < n_segments - 1 else len(samples)
             seg = samples[start:end]
             
-            # Normalize the target pitch to stay within reasonable octave range
+            # Normalize the target pitch to stay within reasonable range
             if freq > 0:
                 print(f"      Segment {i}: Original freq = {freq:.1f} Hz")
                 
@@ -374,10 +369,10 @@ class VocalSynthesizer:
                 normalized_freq = orig_pitch_hz
                 print(f"      Segment {i}: Using default freq = {normalized_freq:.1f} Hz")
             
-            # Pitch shift this segment (more conservative)
+            # Pitch shift this segment
             resample_factor = normalized_freq / orig_pitch_hz
-            # More conservative bounds (0.75 to 2.0 instead of 0.5 to 4.0)
-            resample_factor = max(0.75, min(2.0, resample_factor))
+            # Conservative bounds
+            resample_factor = max(0.7, min(1.5, resample_factor))
             
             print(f"      Segment {i}: Resample factor = {resample_factor:.2f}")
             
