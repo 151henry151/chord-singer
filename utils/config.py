@@ -40,7 +40,7 @@ def get_config() -> Dict[str, Any]:
         'allowed_audio_formats': os.getenv('ALLOWED_AUDIO_FORMATS', 'mp3,wav,flac,m4a').split(','),
         
         # Text-to-Speech Configuration
-        'tts_engine': os.getenv('TTS_ENGINE', 'gtts'),
+        'tts_engine': os.getenv('TTS_ENGINE', 'coqui-tts'),
         'tts_language': os.getenv('TTS_LANGUAGE', 'en'),
         
         # Development Configuration
