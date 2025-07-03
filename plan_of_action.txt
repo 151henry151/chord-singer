@@ -1,0 +1,129 @@
+# Chord-Singer AI Music Coach - Plan of Action
+
+## Current Status
+- ✅ Backend server running with FastAPI
+- ✅ Frontend React app running
+- ✅ Audio processing pipeline (chord detection, melody extraction, vocal separation)
+- ✅ Basic vocal synthesis with edge-tts
+- ✅ ThreadPoolExecutor fix for event loop conflicts (implemented)
+- ❌ Still getting 500 errors during vocal synthesis
+- ❌ Voice sounds mechanical and robotic
+- ❌ No filler words between chord changes
+- ❌ Incorrect chord pronunciation (e.g., "Ah" instead of "Aye")
+
+## Phase 1: Fix Current Event Loop Issue (Immediate Priority)
+**Status**: ✅ Implemented ThreadPoolExecutor fix
+**Next Steps**:
+1. Test the current fix to ensure 500 error is resolved
+2. Verify vocal synthesis completes successfully
+3. Check if "cannot run event loop while another loop is running" error is gone
+
+## Phase 2: Implement Proper Chord Pronunciation (High Priority)
+**Goal**: Make chord names sound natural when sung
+
+### 2.1 Create Pronunciation Mapping System
+- Build dictionary mapping chord names to proper singing pronunciations:
+  - A → "Aye" (long A sound)
+  - B → "Bee" 
+  - C → "See"
+  - D → "Dee"
+  - E → "Eee"
+  - F → "Eff"
+  - G → "Gee"
+  - Am → "Aye minor"
+  - C7 → "See seven"
+  - Dmaj7 → "Dee major seven"
+
+### 2.2 Update Vocal Synthesis
+- Modify `_enhance_for_singing()` method in `advanced_vocal_synthesis.py`
+- Ensure TTS engines receive correctly formatted text
+- Test pronunciation accuracy
+
+## Phase 3: Implement Filler Words and Timing (High Priority)
+**Goal**: Add natural-sounding transitions between chord changes
+
+### 3.1 Create Filler Word System
+- Build contextual filler word generator based on:
+  - Time available between chord changes
+  - Harmonic movement (up/down/same)
+  - Song structure (verse/chorus patterns)
+
+### 3.2 Filler Word Strategy
+```
+Long gaps (>2 beats): "Now we're moving to [CHORD]"
+Medium gaps (1-2 beats): "Now go to [CHORD]" 
+Short gaps (<1 beat): "To [CHORD]"
+Returning: "Back to [CHORD]"
+Staying: "Stay on [CHORD]"
+```
+
+### 3.3 Implement Precise Timing
+- Calculate exact timing for chord name placement
+- Generate filler words that fit available time gaps
+- Ensure chord names hit exactly on chord change moments
+
+### 3.4 Update Synthesis Pipeline
+- Modify `synthesize_stable_chord_vocals_sync()` to include filler words
+- Implement timing-aware text generation
+
+## Phase 4: Improve Voice Naturalness (Medium Priority)
+**Goal**: Make the AI voice sound like a real singer, not a robot
+
+### 4.1 Upgrade TTS Engine
+- Research and implement better TTS options:
+  - Murf AI (fine-tuning of pitch, speed, pronunciation)
+  - Kits.AI (artist AI voices)
+  - ACE Studio (specialized for AI singing)
+- Add singing-specific enhancements (vibrato, breath sounds, pitch variations)
+
+### 4.2 Add Musical Phrasing
+- Implement legato connections between words
+- Add subtle pitch bends and natural singing artifacts
+- Match original song's vocal style and energy
+- Add breath sounds between phrases
+
+### 4.3 Advanced Naturalness Techniques
+- Add subtle vibrato for naturalness
+- Implement proper breath management
+- Use musical accents and emphasis
+- Add emotional inflection appropriate to song's mood
+
+## Phase 5: Advanced Features (Lower Priority)
+**Goal**: Professional-level musical intelligence
+
+### 5.1 Beat Tracking Integration
+- Implement beat detection for more precise timing
+- Use musical structure analysis for better phrasing
+- Add continuous micro-timing adjustments
+
+### 5.2 Quality Assurance
+- Add timing accuracy measurement (chord names should hit within ±50ms of change)
+- Implement A/B testing framework
+- User feedback collection system
+- Iterative refinement based on feedback
+
+## Implementation Order:
+1. **Test current ThreadPoolExecutor fix** (immediate)
+2. **Implement chord pronunciation mapping** (next)
+3. **Add filler words and timing system** (high priority)
+4. **Upgrade TTS for better naturalness** (medium priority)
+5. **Advanced musical features** (future)
+
+## Files to Modify:
+- `backend/synthesis/advanced_vocal_synthesis.py` - Main synthesis logic
+- `backend/audio_processing/chord_detection.py` - Timing calculations
+- `backend/main.py` - Pipeline integration
+- Potentially add new modules for pronunciation and filler word generation
+
+## Success Metrics:
+- [ ] No more 500 errors during synthesis
+- [ ] Chord names pronounced correctly (A = "Aye", not "Ah")
+- [ ] Natural-sounding filler words between chord changes
+- [ ] Chord names hit exactly on chord change moments
+- [ ] Voice sounds like a real singer, not a robot
+- [ ] Timing accuracy within ±50ms of chord changes
+
+## Notes:
+- Current TTS engine: edge-tts with en-US-JennyNeural voice
+- Current approach: Stable vocals (no pitch mapping) for learning clarity
+- Target: Natural singing voice like aimusiclab.co or other AI music apps
