@@ -440,7 +440,8 @@ class VocalSynthesizer:
 
     def enhance_for_singing(self, chord_name: str) -> str:
         """
-        Enhance chord name text to sound more like singing by elongating vowels.
+        Enhanced chord name text for singing with proper pronunciation.
+        Fixes the "#" character vocabulary issue and implements proper chord pronunciation.
         
         Args:
             chord_name: Original chord name
@@ -448,11 +449,85 @@ class VocalSynthesizer:
         Returns:
             Enhanced chord name with singing characteristics
         """
-        # Add spaces between syllables and elongate vowels for singing
         enhanced = chord_name.upper()
         
-        # Elongate vowels for singing effect
-        enhanced = re.sub(r'([AEIOU])', r'\1\1\1', enhanced)  # Triple vowels
+        # Phase 1: Parse chord structure more carefully to handle sharps and flats
+        chord_parts = []
+        
+        # Extract root note with sharp/flat as a unit
+        root_match = re.match(r'^([A-G][#♯b♭]?)', enhanced)
+        if root_match:
+            root_with_accidental = root_match.group(1)
+            root_pronunciations = {
+                # Natural notes
+                'A': 'AYE',   'B': 'BEE',   'C': 'SEE',   'D': 'DEE',   
+                'E': 'EEE',   'F': 'EFF',   'G': 'GEE',
+                # Sharp notes
+                'A#': 'AYE SHARP',  'A♯': 'AYE SHARP',
+                'B#': 'BEE SHARP',  'B♯': 'BEE SHARP',
+                'C#': 'SEE SHARP',  'C♯': 'SEE SHARP',
+                'D#': 'DEE SHARP',  'D♯': 'DEE SHARP',
+                'E#': 'EEE SHARP',  'E♯': 'EEE SHARP',
+                'F#': 'EFF SHARP',  'F♯': 'EFF SHARP',
+                'G#': 'GEE SHARP',  'G♯': 'GEE SHARP',
+                # Flat notes
+                'Ab': 'AYE FLAT',   'A♭': 'AYE FLAT',
+                'Bb': 'BEE FLAT',   'B♭': 'BEE FLAT',
+                'Cb': 'SEE FLAT',   'C♭': 'SEE FLAT',
+                'Db': 'DEE FLAT',   'D♭': 'DEE FLAT',
+                'Eb': 'EEE FLAT',   'E♭': 'EEE FLAT',
+                'Fb': 'EFF FLAT',   'F♭': 'EFF FLAT',
+                'Gb': 'GEE FLAT',   'G♭': 'GEE FLAT',
+            }
+            chord_parts.append(root_pronunciations.get(root_with_accidental, root_with_accidental))
+            enhanced = enhanced[len(root_with_accidental):]  # Remove the root note with accidental
+        
+        # Phase 3: Chord quality pronunciations
+        chord_quality_pronunciations = [
+            ('MAJ7', 'MAJOR SEVEN'),
+            ('MIN7', 'MINOR SEVEN'),
+            ('MAJ', 'MAJOR'),
+            ('MIN', 'MINOR'),
+            ('MINOR', 'MINOR'),
+            ('AUG', 'AUGMENTED'),
+            ('DIM', 'DIMINISHED'),
+            ('SUS4', 'SUSPENDED FOUR'),
+            ('SUS2', 'SUSPENDED TWO'),
+            ('SUS', 'SUSPENDED'),
+            ('ADD', 'ADD'),
+        ]
+        
+        # Apply chord quality pronunciations in order of specificity
+        for quality, pronunciation in chord_quality_pronunciations:
+            if enhanced.startswith(quality):
+                chord_parts.append(pronunciation)
+                enhanced = enhanced[len(quality):]
+                break
+        
+        # Phase 4: Number pronunciations  
+        number_pronunciations = {
+            '13': 'THIRTEEN',
+            '11': 'ELEVEN',
+            '9': 'NINE',
+            '7': 'SEVEN',
+            '6': 'SIX',
+            '4': 'FOUR',
+            '2': 'TWO'
+        }
+        
+        # Apply number pronunciations in order of length (longest first)
+        for number, pronunciation in number_pronunciations.items():
+            if enhanced.startswith(number):
+                chord_parts.append(pronunciation)
+                enhanced = enhanced[len(number):]
+                break
+        
+        # Combine all parts
+        enhanced = ' '.join(chord_parts)
+        
+        # Phase 5: Add singing enhancements
+        # Elongate vowels for singing effect (more subtly than before)
+        enhanced = re.sub(r'([AEIOU])', r'\1\1', enhanced)  # Double vowels
         
         # Add musical phrasing
         enhanced = enhanced.replace(' ', ' ... ')  # Add pauses between words
@@ -464,5 +539,8 @@ class VocalSynthesizer:
         enhanced = enhanced.replace('NINE', 'NIIINE')
         enhanced = enhanced.replace('ELEVEN', 'ELEV-EN')
         enhanced = enhanced.replace('THIRTEEN', 'THIR-TEEN')
+        
+        # Clean up extra spaces
+        enhanced = ' '.join(enhanced.split())
         
         return enhanced 

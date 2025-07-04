@@ -1,0 +1,57 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting edge-tts
+  Downloading edge_tts-7.0.2-py3-none-any.whl.metadata (5.5 kB)
+Collecting aiohttp<4.0.0,>=3.8.0 (from edge-tts)
+  Downloading aiohttp-3.12.13-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.6 kB)
+Collecting certifi>=2023.11.17 (from edge-tts)
+  Downloading certifi-2025.6.15-py3-none-any.whl.metadata (2.4 kB)
+Collecting srt<4.0.0,>=3.4.1 (from edge-tts)
+  Downloading srt-3.5.3.tar.gz (28 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting tabulate<1.0.0,>=0.4.4 (from edge-tts)
+  Downloading tabulate-0.9.0-py3-none-any.whl.metadata (34 kB)
+Collecting typing-extensions<5.0.0,>=4.1.0 (from edge-tts)
+  Downloading typing_extensions-4.14.1-py3-none-any.whl.metadata (3.0 kB)
+Collecting aiohappyeyeballs>=2.5.0 (from aiohttp<4.0.0,>=3.8.0->edge-tts)
+  Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl.metadata (5.9 kB)
+Collecting aiosignal>=1.1.2 (from aiohttp<4.0.0,>=3.8.0->edge-tts)
+  Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+Collecting attrs>=17.3.0 (from aiohttp<4.0.0,>=3.8.0->edge-tts)
+  Downloading attrs-25.3.0-py3-none-any.whl.metadata (10 kB)
+Collecting frozenlist>=1.1.1 (from aiohttp<4.0.0,>=3.8.0->edge-tts)
+  Downloading frozenlist-1.7.0-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (18 kB)
+Collecting multidict<7.0,>=4.5 (from aiohttp<4.0.0,>=3.8.0->edge-tts)
+  Downloading multidict-6.6.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.3 kB)
+Collecting propcache>=0.2.0 (from aiohttp<4.0.0,>=3.8.0->edge-tts)
+  Downloading propcache-0.3.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (12 kB)
+Collecting yarl<2.0,>=1.17.0 (from aiohttp<4.0.0,>=3.8.0->edge-tts)
+  Downloading yarl-1.20.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (73 kB)
+Collecting idna>=2.0 (from yarl<2.0,>=1.17.0->aiohttp<4.0.0,>=3.8.0->edge-tts)
+  Downloading idna-3.10-py3-none-any.whl.metadata (10 kB)
+Downloading edge_tts-7.0.2-py3-none-any.whl (26 kB)
+Downloading aiohttp-3.12.13-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 128.6 MB/s eta 0:00:00
+Downloading certifi-2025.6.15-py3-none-any.whl (157 kB)
+Downloading tabulate-0.9.0-py3-none-any.whl (35 kB)
+Downloading typing_extensions-4.14.1-py3-none-any.whl (43 kB)
+Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl (15 kB)
+Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+Downloading attrs-25.3.0-py3-none-any.whl (63 kB)
+Downloading frozenlist-1.7.0-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (232 kB)
+Downloading multidict-6.6.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (254 kB)
+Downloading propcache-0.3.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (206 kB)
+Downloading yarl-1.20.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (352 kB)
+Downloading idna-3.10-py3-none-any.whl (70 kB)
+Building wheels for collected packages: srt
+  Building wheel for srt (pyproject.toml): started
+  Building wheel for srt (pyproject.toml): finished with status 'done'
+  Created wheel for srt: filename=srt-3.5.3-py3-none-any.whl size=22512 sha256=361857ce8afc278066165b5970e65f27b75525bab8b7fc6c43a2a73abd6ea531
+  Stored in directory: /home/ubuntu/.cache/pip/wheels/ed/9d/54/8e040c593adecbf10de5a6263add15cfefff5a033e33fda8c6
+Successfully built srt
+Installing collected packages: typing-extensions, tabulate, srt, propcache, multidict, idna, frozenlist, certifi, attrs, aiohappyeyeballs, yarl, aiosignal, aiohttp, edge-tts
+Successfully installed aiohappyeyeballs-2.6.1 aiohttp-3.12.13 aiosignal-1.4.0 attrs-25.3.0 certifi-2025.6.15 edge-tts-7.0.2 frozenlist-1.7.0 idna-3.10 multidict-6.6.3 propcache-0.3.2 srt-3.5.3 tabulate-0.9.0 typing-extensions-4.14.1 yarl-1.20.1

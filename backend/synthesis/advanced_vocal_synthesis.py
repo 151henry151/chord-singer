@@ -17,6 +17,15 @@ import soundfile as sf
 # TTS Engine
 from TTS.api import TTS
 
+# Phase 4: Advanced TTS for better naturalness (from plan_of_action.txt)
+try:
+    import edge_tts
+    import asyncio
+    EDGE_TTS_AVAILABLE = True
+except ImportError:
+    EDGE_TTS_AVAILABLE = False
+    print("edge-tts not available, falling back to Coqui TTS")
+
 # For better audio processing
 from scipy import signal
 import random
@@ -109,8 +118,8 @@ class AdvancedVocalSynthesizer:
             print(f"   Enhanced text: '{enhanced_chord_name}'")
             
             try:
-                # Generate audio with Coqui TTS
-                chord_audio = self._synthesize_with_coqui_tts(enhanced_chord_name)
+                # Generate audio with best available TTS (edge-tts preferred for naturalness)
+                chord_audio = self._synthesize_with_best_tts(enhanced_chord_name)
                 
                 # Apply singing enhancements
                 chord_audio = self._apply_singing_enhancements(
@@ -161,6 +170,52 @@ class AdvancedVocalSynthesizer:
             print(f"Coqui TTS error: {e}")
             # Return silence as fallback
             return AudioSegment.silent(duration=1000)
+    
+    async def _synthesize_with_edge_tts(self, text: str) -> AudioSegment:
+        """
+        Synthesize text using edge-tts for better naturalness.
+        Implements Phase 4 of plan_of_action.txt - improved voice naturalness.
+        """
+        try:
+            # Use en-US-JennyNeural voice as mentioned in the plan
+            voice = "en-US-JennyNeural"
+            
+            # Create a temporary file for edge-tts output
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            # Generate speech with edge-tts
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(temp_path)
+            
+            # Load the generated audio
+            audio = AudioSegment.from_wav(temp_path)
+            
+            # Clean up
+            os.unlink(temp_path)
+            
+            return audio
+            
+        except Exception as e:
+            print(f"Edge TTS error: {e}")
+            # Fallback to Coqui TTS
+            return self._synthesize_with_coqui_tts(text)
+    
+    def _synthesize_with_best_tts(self, text: str) -> AudioSegment:
+        """
+        Synthesize text using the best available TTS engine.
+        Prioritizes edge-tts for naturalness, falls back to Coqui TTS.
+        """
+        if EDGE_TTS_AVAILABLE:
+            # Use edge-tts for better naturalness
+            try:
+                return asyncio.run(self._synthesize_with_edge_tts(text))
+            except Exception as e:
+                print(f"Edge TTS failed, falling back to Coqui TTS: {e}")
+                return self._synthesize_with_coqui_tts(text)
+        else:
+            # Use Coqui TTS as fallback
+            return self._synthesize_with_coqui_tts(text)
     
     def _apply_singing_enhancements(self, 
                                   audio: AudioSegment, 
@@ -424,13 +479,23 @@ class AdvancedVocalSynthesizer:
             
             chord_duration_ms = int((end_time - start_time) * 1000)
             
-            # Enhance chord name for singing (simpler for stable vocals)
-            enhanced_chord_name = self._enhance_for_singing_simple(chord_name)
+            # Phase 3: Generate filler words and timing (from plan_of_action.txt)
+            filler_text = ""
+            if i < len(chord_timeline) - 1:
+                next_chord = chord_timeline[i + 1][0]
+                time_gap = chord_timeline[i + 1][1] - end_time
+                filler_text = self._generate_filler_words(
+                    chord_name, next_chord, time_gap, i, len(chord_timeline)
+                )
+                print(f"   Filler text: '{filler_text}'")
+            
+            # Enhance chord name with filler words for natural flow
+            enhanced_chord_name = self._enhance_for_singing_with_filler(chord_name, filler_text)
             print(f"   Enhanced text: '{enhanced_chord_name}'")
             
             try:
-                # Generate audio with Coqui TTS
-                chord_audio = self._synthesize_with_coqui_tts(enhanced_chord_name)
+                # Generate audio with best available TTS (edge-tts preferred for naturalness)
+                chord_audio = self._synthesize_with_best_tts(enhanced_chord_name)
                 
                 # Apply basic singing enhancements (no pitch mapping)
                 chord_audio = self._apply_basic_singing_enhancements(chord_audio, chord_duration_ms)
@@ -460,20 +525,172 @@ class AdvancedVocalSynthesizer:
     
     def _enhance_for_singing_simple(self, chord_name: str) -> str:
         """
-        Simple enhancement for stable chord vocals.
+        Enhanced chord pronunciation system for stable chord vocals.
+        Implements proper chord pronunciation mapping as per plan_of_action.txt:
+        - A → "Aye" (not "Ah")
+        - # → "Sharp" 
+        - b → "Flat"
+        - Natural singing pronunciation for all chord types
         """
         enhanced = chord_name.upper()
         
-        # Add spaces between chord parts
-        enhanced = enhanced.replace('MAJ', ' MAJOR')
-        enhanced = enhanced.replace('MIN', ' MINOR')
-        enhanced = enhanced.replace('7', ' SEVEN')
-        enhanced = enhanced.replace('9', ' NINE')
+        # Phase 1: Parse chord structure more carefully to handle sharps and flats
+        chord_parts = []
         
-        # Clean up double spaces
+        # Extract root note with sharp/flat as a unit
+        root_match = re.match(r'^([A-G][#♯b♭]?)', enhanced)
+        if root_match:
+            root_with_accidental = root_match.group(1)
+            root_pronunciations = {
+                # Natural notes
+                'A': 'AYE',   'B': 'BEE',   'C': 'SEE',   'D': 'DEE',   
+                'E': 'EEE',   'F': 'EFF',   'G': 'GEE',
+                # Sharp notes
+                'A#': 'AYE SHARP',  'A♯': 'AYE SHARP',
+                'B#': 'BEE SHARP',  'B♯': 'BEE SHARP',
+                'C#': 'SEE SHARP',  'C♯': 'SEE SHARP',
+                'D#': 'DEE SHARP',  'D♯': 'DEE SHARP',
+                'E#': 'EEE SHARP',  'E♯': 'EEE SHARP',
+                'F#': 'EFF SHARP',  'F♯': 'EFF SHARP',
+                'G#': 'GEE SHARP',  'G♯': 'GEE SHARP',
+                # Flat notes
+                'Ab': 'AYE FLAT',   'A♭': 'AYE FLAT',
+                'Bb': 'BEE FLAT',   'B♭': 'BEE FLAT',
+                'Cb': 'SEE FLAT',   'C♭': 'SEE FLAT',
+                'Db': 'DEE FLAT',   'D♭': 'DEE FLAT',
+                'Eb': 'EEE FLAT',   'E♭': 'EEE FLAT',
+                'Fb': 'EFF FLAT',   'F♭': 'EFF FLAT',
+                'Gb': 'GEE FLAT',   'G♭': 'GEE FLAT',
+            }
+            chord_parts.append(root_pronunciations.get(root_with_accidental, root_with_accidental))
+            enhanced = enhanced[len(root_with_accidental):]  # Remove the root note with accidental
+        
+        # Phase 3: Chord quality pronunciations
+        chord_quality_pronunciations = [
+            ('MAJ7', 'MAJOR SEVEN'),
+            ('MIN7', 'MINOR SEVEN'),
+            ('MAJ', 'MAJOR'),
+            ('MIN', 'MINOR'),
+            ('MINOR', 'MINOR'),
+            ('AUG', 'AUGMENTED'),
+            ('DIM', 'DIMINISHED'),
+            ('SUS4', 'SUSPENDED FOUR'),
+            ('SUS2', 'SUSPENDED TWO'),
+            ('SUS', 'SUSPENDED'),
+            ('ADD', 'ADD'),
+        ]
+        
+        # Apply chord quality pronunciations in order of specificity
+        for quality, pronunciation in chord_quality_pronunciations:
+            if enhanced.startswith(quality):
+                chord_parts.append(pronunciation)
+                enhanced = enhanced[len(quality):]
+                break
+        
+        # Phase 4: Number pronunciations  
+        number_pronunciations = {
+            '13': 'THIRTEEN',
+            '11': 'ELEVEN',
+            '9': 'NINE',
+            '7': 'SEVEN',
+            '6': 'SIX',
+            '4': 'FOUR',
+            '2': 'TWO'
+        }
+        
+        # Apply number pronunciations in order of length (longest first)
+        for number, pronunciation in number_pronunciations.items():
+            if enhanced.startswith(number):
+                chord_parts.append(pronunciation)
+                enhanced = enhanced[len(number):]
+                break
+        
+        # Phase 5: Combine all parts
+        enhanced = ' '.join(chord_parts)
+        
+        # Clean up extra spaces
         enhanced = ' '.join(enhanced.split())
         
         return enhanced
+    
+    def _generate_filler_words(self, 
+                             current_chord: str, 
+                             next_chord: str, 
+                             time_gap_sec: float,
+                             chord_index: int,
+                             total_chords: int) -> str:
+        """
+        Generate contextual filler words between chord changes.
+        Implements Phase 3 of plan_of_action.txt: filler words and timing.
+        
+        Args:
+            current_chord: Current chord name
+            next_chord: Next chord name  
+            time_gap_sec: Time available between chords
+            chord_index: Current chord index (0-based)
+            total_chords: Total number of chords
+            
+        Returns:
+            Filler text appropriate for the context
+        """
+        # Determine context
+        is_returning = (chord_index > 0 and current_chord == next_chord)
+        is_staying = (current_chord == next_chord)
+        is_first_chord = (chord_index == 0)
+        is_last_chord = (chord_index == total_chords - 1)
+        
+        # Generate filler based on available time and context
+        if time_gap_sec > 2.0:
+            # Long gaps: full phrases
+            if is_returning:
+                return "Now we're back to"
+            elif is_first_chord:
+                return "We start with"
+            elif is_last_chord:
+                return "Finally we have"
+            else:
+                return "Now we're moving to"
+                
+        elif time_gap_sec > 1.0:
+            # Medium gaps: shorter phrases
+            if is_returning:
+                return "Back to"
+            elif is_staying:
+                return "Stay on"
+            else:
+                return "Now go to"
+                
+        elif time_gap_sec > 0.5:
+            # Short gaps: minimal filler
+            if is_returning:
+                return "Back to"
+            else:
+                return "To"
+        else:
+            # Very short gaps: just the chord
+            return ""
+    
+    def _enhance_for_singing_with_filler(self, 
+                                       chord_name: str, 
+                                       filler_text: str = "") -> str:
+        """
+        Enhanced chord pronunciation with filler words for natural flow.
+        
+        Args:
+            chord_name: The chord name to enhance
+            filler_text: Optional filler text to prepend
+            
+        Returns:
+            Enhanced text with filler words and proper pronunciation
+        """
+        # Get the properly pronounced chord name
+        enhanced_chord = self._enhance_for_singing_simple(chord_name)
+        
+        # Combine with filler text if provided
+        if filler_text:
+            return f"{filler_text} {enhanced_chord}"
+        else:
+            return enhanced_chord
     
     def _apply_basic_singing_enhancements(self, audio: AudioSegment, duration_ms: int) -> AudioSegment:
         """
