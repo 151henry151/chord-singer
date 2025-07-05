@@ -83,10 +83,8 @@ trap cleanup SIGINT SIGTERM
 
 # Start backend server
 print_status "Starting backend server (FastAPI) on http://localhost:8000..."
-cd backend
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload &
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload &
 BACKEND_PID=$!
-cd ..
 
 # Wait a moment for backend to start
 sleep 3
