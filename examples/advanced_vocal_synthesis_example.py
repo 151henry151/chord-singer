@@ -1,6 +1,6 @@
 """
-Example script demonstrating the AdvancedVocalSynthesizer class.
-Shows the difference between basic pyttsx3 and advanced TTS engines.
+Example script demonstrating the AdvancedVocalSynthesizer class with Coqui TTS.
+Shows advanced vocal synthesis with singing enhancements.
 """
 
 import sys
@@ -14,15 +14,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 from synthesis.advanced_vocal_synthesis import AdvancedVocalSynthesizer, synthesize_sung_chord_vocals_sync
 
 
-async def test_edge_tts():
-    """Test edge-tts synthesis."""
-    print("\n🎵 Testing Edge-TTS (Microsoft's high-quality TTS)")
+async def test_coqui_tts():
+    """Test Coqui TTS synthesis with singing enhancements."""
+    print("\n🎵 Testing Coqui TTS (Advanced Neural TTS)")
     print("=" * 60)
     
     synthesizer = AdvancedVocalSynthesizer(
-        tts_engine="edge-tts",
-        voice_name="en-US-JennyNeural",
-        rate=0.8,  # Slightly slower for singing
+        model_name="tts_models/en/ljspeech/tacotron2-DDC",
+        vocoder_name="vocoder_models/en/ljspeech/hifigan_v2",
+        rate=0.9,
         volume=0.9
     )
     
@@ -66,7 +66,7 @@ async def test_edge_tts():
             output_path, output_path  # Use same file for instrumental (silence)
         )
         
-        print(f"✓ Successfully generated Edge-TTS vocals!")
+        print(f"✓ Successfully generated Coqui TTS vocals!")
         print(f"  Output file: {result_path}")
         print(f"  Duration: {instrumental_duration} seconds")
         
@@ -75,7 +75,7 @@ async def test_edge_tts():
         print(f"  File size: {file_size:.1f} KB")
         
     except Exception as e:
-        print(f"✗ Error generating Edge-TTS vocals: {e}")
+        print(f"✗ Error generating Coqui TTS vocals: {e}")
         import traceback
         traceback.print_exc()
     
@@ -85,14 +85,15 @@ async def test_edge_tts():
             os.unlink(output_path)
 
 
-async def test_gtts():
-    """Test gTTS synthesis."""
-    print("\n🎵 Testing gTTS (Google Text-to-Speech)")
+async def test_stable_vocals():
+    """Test stable vocals synthesis (no pitch mapping)."""
+    print("\n🎵 Testing Stable Vocals (No Pitch Mapping)")
     print("=" * 60)
     
     synthesizer = AdvancedVocalSynthesizer(
-        tts_engine="gtts",
-        rate=1.0,
+        model_name="tts_models/en/ljspeech/tacotron2-DDC",
+        vocoder_name="vocoder_models/en/ljspeech/hifigan_v2",
+        rate=0.9,
         volume=0.9
     )
     
@@ -104,30 +105,19 @@ async def test_gtts():
         ("G major", 6.0, 8.0)
     ]
     
-    # Simple melody contour
-    melody_contour = [
-        (0.0, 261.63),   # C4
-        (1.0, 329.63),   # E4
-        (2.0, 220.00),   # A3
-        (3.0, 261.63),   # C4
-        (4.0, 174.61),   # F3
-        (5.0, 220.00),   # A3
-        (6.0, 196.00),   # G3
-        (7.0, 261.63),   # C4
-    ]
-    
+    # Create a simple instrumental track (just silence for demo)
     instrumental_duration = 8.0
     
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
         output_path = temp_file.name
     
     try:
-        result_path = await synthesizer.synthesize_sung_chord_vocals(
-            chord_timeline, melody_contour, instrumental_duration, 
-            output_path, output_path
+        result_path = await synthesizer.synthesize_stable_chord_vocals(
+            chord_timeline, instrumental_duration, 
+            output_path, output_path  # Use same file for instrumental (silence)
         )
         
-        print(f"✓ Successfully generated gTTS vocals!")
+        print(f"✓ Successfully generated stable vocals!")
         print(f"  Output file: {result_path}")
         print(f"  Duration: {instrumental_duration} seconds")
         
@@ -135,7 +125,7 @@ async def test_gtts():
         print(f"  File size: {file_size:.1f} KB")
         
     except Exception as e:
-        print(f"✗ Error generating gTTS vocals: {e}")
+        print(f"✗ Error generating stable vocals: {e}")
         import traceback
         traceback.print_exc()
     
@@ -177,8 +167,8 @@ def test_sync_wrapper():
         result_path = synthesize_sung_chord_vocals_sync(
             chord_timeline, melody_contour, instrumental_duration,
             output_path, output_path,
-            tts_engine="edge-tts",
-            voice_name="en-US-JennyNeural"
+            model_name="tts_models/en/ljspeech/tacotron2-DDC",
+            vocoder_name="vocoder_models/en/ljspeech/hifigan_v2"
         )
         
         print(f"✓ Successfully generated vocals using sync wrapper!")
@@ -198,58 +188,56 @@ def test_sync_wrapper():
             os.unlink(output_path)
 
 
-def list_available_voices():
-    """List available voices for different TTS engines."""
-    print("\n🎤 Available Voices")
+def test_available_voices():
+    """Test getting available Coqui TTS voices."""
+    print("\n🎵 Testing Available Coqui TTS Voices")
     print("=" * 60)
     
-    # Test edge-tts voices
-    print("\nEdge-TTS Voices (first 10):")
     try:
-        synthesizer = AdvancedVocalSynthesizer(tts_engine="edge-tts")
+        synthesizer = AdvancedVocalSynthesizer()
         voices = synthesizer.get_available_voices()
+        
+        print(f"✓ Found {len(voices)} available Coqui TTS models")
+        print("\nCoqui TTS Models (first 10):")
         for i, voice in enumerate(voices[:10]):
-            print(f"  {i+1}. {voice['name']} ({voice['language']})")
-        synthesizer.cleanup()
+            print(f"  {i+1}. {voice['name']} (ID: {voice['id']})")
+        
+        if len(voices) > 10:
+            print(f"  ... and {len(voices) - 10} more models")
+        
     except Exception as e:
-        print(f"  Error getting Edge-TTS voices: {e}")
-    
-    # Test pyttsx3 voices
-    print("\npyttsx3 Voices:")
-    try:
-        synthesizer = AdvancedVocalSynthesizer(tts_engine="pyttsx3")
-        voices = synthesizer.get_available_voices()
-        for i, voice in enumerate(voices):
-            print(f"  {i+1}. {voice['name']}")
-        synthesizer.cleanup()
-    except Exception as e:
-        print(f"  Error getting pyttsx3 voices: {e}")
+        print(f"  Error getting Coqui TTS voices: {e}")
 
 
 async def main():
-    """Main function to run all tests."""
-    print("🎵 Advanced Vocal Synthesis Demo")
+    """Run all tests."""
+    print("🎵 Advanced Vocal Synthesis Example")
     print("=" * 60)
-    print("This demo shows the difference between basic pyttsx3 and advanced TTS engines.")
-    print("The advanced engines should produce much more natural-sounding vocals.")
+    print("This example demonstrates:")
+    print("  • Coqui TTS integration")
+    print("  • Spectral pitch shifting")
+    print("  • Singing enhancements")
+    print("  • Stable vocals for learning")
+    print("  • Natural-sounding chord pronunciation")
     
-    # List available voices
-    list_available_voices()
+    # Test Coqui TTS with pitch mapping
+    await test_coqui_tts()
     
-    # Test different TTS engines
-    await test_edge_tts()
-    await test_gtts()
+    # Test stable vocals (no pitch mapping)
+    await test_stable_vocals()
+    
+    # Test synchronous wrapper
     test_sync_wrapper()
     
-    print("\n" + "=" * 60)
-    print("🎵 Demo completed!")
-    print("\nKey improvements in the advanced vocal synthesis:")
-    print("  • Multiple TTS engines (Edge-TTS, gTTS, pyttsx3)")
-    print("  • Natural-sounding voices instead of robotic speech")
-    print("  • Pitch mapping to follow melody contours")
-    print("  • Singing-specific audio effects (vibrato, reverb, compression)")
-    print("  • Enhanced text processing for better singing pronunciation")
-    print("  • Automatic fallback between engines")
+    # Test available voices
+    test_available_voices()
+    
+    print("\n🎵 Example completed!")
+    print("All tests should have generated audio files with:")
+    print("  • Natural-sounding vocals")
+    print("  • Proper chord pronunciation")
+    print("  • Musical enhancements")
+    print("  • Perfect timing synchronization")
 
 
 if __name__ == "__main__":

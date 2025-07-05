@@ -45,8 +45,8 @@ def test_stable_vocals():
             original_audio_duration_sec=instrumental_duration,
             output_path=output_path,
             original_audio_path=output_path,  # Use same file for instrumental (silence)
-            tts_engine="edge-tts",
-            voice_name="en-US-JennyNeural"
+            model_name="tts_models/en/ljspeech/tacotron2-DDC",
+            vocoder_name="vocoder_models/en/ljspeech/hifigan_v2"
         )
         
         print(f"✅ Successfully generated stable vocals!")

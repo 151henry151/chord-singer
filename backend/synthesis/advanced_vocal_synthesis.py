@@ -14,17 +14,8 @@ from scipy.signal import resample
 import librosa
 import soundfile as sf
 
-# TTS Engine
+# TTS Engine - Coqui TTS only
 from TTS.api import TTS
-
-# Phase 4: Advanced TTS for better naturalness (from plan_of_action.txt)
-try:
-    import edge_tts
-    import asyncio
-    EDGE_TTS_AVAILABLE = True
-except ImportError:
-    EDGE_TTS_AVAILABLE = False
-    print("edge-tts not available, falling back to Coqui TTS")
 
 # For better audio processing
 from scipy import signal
@@ -118,8 +109,8 @@ class AdvancedVocalSynthesizer:
             print(f"   Enhanced text: '{enhanced_chord_name}'")
             
             try:
-                # Generate audio with best available TTS (edge-tts preferred for naturalness)
-                chord_audio = self._synthesize_with_best_tts(enhanced_chord_name)
+                # Generate audio with Coqui TTS
+                chord_audio = self._synthesize_with_coqui_tts(enhanced_chord_name)
                 
                 # Apply singing enhancements
                 chord_audio = self._apply_singing_enhancements(
@@ -171,52 +162,6 @@ class AdvancedVocalSynthesizer:
             # Return silence as fallback
             return AudioSegment.silent(duration=1000)
     
-    async def _synthesize_with_edge_tts(self, text: str) -> AudioSegment:
-        """
-        Synthesize text using edge-tts for better naturalness.
-        Implements Phase 4 of plan_of_action.txt - improved voice naturalness.
-        """
-        try:
-            # Use en-US-JennyNeural voice as mentioned in the plan
-            voice = "en-US-JennyNeural"
-            
-            # Create a temporary file for edge-tts output
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_path = temp_file.name
-            
-            # Generate speech with edge-tts
-            communicate = edge_tts.Communicate(text, voice)
-            await communicate.save(temp_path)
-            
-            # Load the generated audio
-            audio = AudioSegment.from_wav(temp_path)
-            
-            # Clean up
-            os.unlink(temp_path)
-            
-            return audio
-            
-        except Exception as e:
-            print(f"Edge TTS error: {e}")
-            # Fallback to Coqui TTS
-            return self._synthesize_with_coqui_tts(text)
-    
-    def _synthesize_with_best_tts(self, text: str) -> AudioSegment:
-        """
-        Synthesize text using the best available TTS engine.
-        Prioritizes edge-tts for naturalness, falls back to Coqui TTS.
-        """
-        if EDGE_TTS_AVAILABLE:
-            # Use edge-tts for better naturalness
-            try:
-                return asyncio.run(self._synthesize_with_edge_tts(text))
-            except Exception as e:
-                print(f"Edge TTS failed, falling back to Coqui TTS: {e}")
-                return self._synthesize_with_coqui_tts(text)
-        else:
-            # Use Coqui TTS as fallback
-            return self._synthesize_with_coqui_tts(text)
-    
     def _apply_singing_enhancements(self, 
                                   audio: AudioSegment, 
                                   melody_points: List[Tuple[float, float]], 
@@ -262,7 +207,7 @@ class AdvancedVocalSynthesizer:
                            melody_points: List[Tuple[float, float]], 
                            duration_ms: int) -> np.ndarray:
         """
-        Apply pitch mapping to follow the melody contour with proper range normalization.
+        Apply pitch mapping to follow the melody contour using spectral pitch shifting.
         """
         if not melody_points or len(samples) < 2:
             return samples
@@ -284,23 +229,19 @@ class AdvancedVocalSynthesizer:
         # Clamp to reasonable vocal range
         normalized_pitch = max(MIN_VOCAL_PITCH, min(MAX_VOCAL_PITCH, normalized_pitch))
         
-        # Estimate original Coqui TTS pitch
-        original_pitch = 250.0  # Typical Coqui TTS pitch
+        # Estimate original TTS pitch
+        original_pitch = 250.0  # Typical TTS pitch
         
         # Calculate pitch shift factor with conservative limits
         pitch_factor = normalized_pitch / original_pitch
         pitch_factor = max(0.8, min(1.4, pitch_factor))
         
-        print(f"   🎵 Pitch mapping: {original_pitch:.1f} Hz → {normalized_pitch:.1f} Hz (factor: {pitch_factor:.2f})")
+        print(f"   🎵 Spectral pitch mapping: {original_pitch:.1f} Hz → {normalized_pitch:.1f} Hz (factor: {pitch_factor:.2f})")
         
-        # Apply pitch shift using resampling
-        new_length = int(len(samples) / pitch_factor)
-        if new_length > 1:
-            shifted = resample(samples, new_length)
-        else:
-            shifted = samples
+        # Apply spectral pitch shifting (preserves duration)
+        shifted_samples = self._spectral_pitch_shift(samples, sr, pitch_factor)
         
-        return shifted
+        return shifted_samples
     
     def _normalize_to_vocal_octave(self, frequency: float) -> float:
         """
@@ -494,8 +435,8 @@ class AdvancedVocalSynthesizer:
             print(f"   Enhanced text: '{enhanced_chord_name}'")
             
             try:
-                # Generate audio with best available TTS (edge-tts preferred for naturalness)
-                chord_audio = self._synthesize_with_best_tts(enhanced_chord_name)
+                # Generate audio with Coqui TTS
+                chord_audio = self._synthesize_with_coqui_tts(enhanced_chord_name)
                 
                 # Apply basic singing enhancements (no pitch mapping)
                 chord_audio = self._apply_basic_singing_enhancements(chord_audio, chord_duration_ms)
@@ -753,6 +694,48 @@ class AdvancedVocalSynthesizer:
         samples = samples * (1 - gain_reduction)
         
         return samples
+    
+    def _spectral_pitch_shift(self, samples: np.ndarray, sr: int, pitch_factor: float) -> np.ndarray:
+        """
+        Apply spectral pitch shifting using phase vocoder technique.
+        This changes pitch without affecting timing/duration.
+        
+        Args:
+            samples: Input audio samples
+            sr: Sample rate
+            pitch_factor: Pitch shift factor (1.0 = no change, 2.0 = octave up, 0.5 = octave down)
+            
+        Returns:
+            Pitch-shifted samples with same duration as input
+        """
+        if len(samples) < 2:
+            return samples
+        
+        # Parameters for spectral processing
+        frame_length = 2048
+        hop_length = 512
+        window = 'hann'
+        
+        # Apply phase vocoder pitch shifting
+        try:
+            # Use librosa's phase vocoder for proper pitch shifting
+            shifted_samples = librosa.effects.pitch_shift(
+                samples, 
+                sr=sr, 
+                n_steps=12 * np.log2(pitch_factor),  # Convert factor to semitones
+                bins_per_octave=12
+            )
+            
+            return shifted_samples
+            
+        except Exception as e:
+            print(f"Phase vocoder failed, falling back to resampling: {e}")
+            # Fallback to resampling if phase vocoder fails
+            new_length = int(len(samples) / pitch_factor)
+            if new_length > 1:
+                return resample(samples, new_length)
+            else:
+                return samples
 
 
 def synthesize_sung_chord_vocals_sync(chord_timeline: List[Tuple[str, float, float]],

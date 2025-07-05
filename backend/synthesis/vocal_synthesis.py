@@ -10,6 +10,7 @@ from scipy.signal import resample
 import re
 from pydub import AudioSegment
 from TTS.api import TTS
+import librosa
 
 
 class VocalSynthesizer:
@@ -26,8 +27,12 @@ class VocalSynthesizer:
             model_name: Coqui TTS model to use
             vocoder_name: Vocoder model to use for audio generation
         """
+        self.model_name = model_name
+        self.rate = 1.0
+        self.volume = 1.0
+        
+        # Initialize Coqui TTS
         try:
-            # Initialize Coqui TTS
             self.tts = TTS(model_name=model_name, vocoder_name=vocoder_name, progress_bar=False)
             print(f"✓ Coqui TTS initialized with model: {model_name}")
         except Exception as e:
@@ -85,19 +90,22 @@ class VocalSynthesizer:
         Returns:
             AudioSegment containing the spoken chord name
         """
+        if not self.tts:
+            raise RuntimeError("TTS engine not initialized")
+        
         try:
-            # Create a temporary file for the TTS output
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_path = temp_file.name
-            
-            # Generate speech and save to temporary file
-            self.tts.tts_to_file(text=chord_name, file_path=temp_path)
+            # Generate audio using Coqui TTS
+            audio_path = self.tts.tts_to_file(
+                text=chord_name,
+                file_path="temp_chord.wav"
+            )
             
             # Load the generated audio
-            chord_audio = AudioSegment.from_wav(temp_path)
+            chord_audio = AudioSegment.from_wav(audio_path)
             
             # Clean up temporary file
-            os.unlink(temp_path)
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
             
             return chord_audio
             
@@ -263,9 +271,46 @@ class VocalSynthesizer:
         
         return output_path
 
+    def _spectral_pitch_shift(self, samples: np.ndarray, sr: int, pitch_factor: float) -> np.ndarray:
+        """
+        Apply spectral pitch shifting using phase vocoder technique.
+        This changes pitch without affecting timing/duration.
+        
+        Args:
+            samples: Input audio samples
+            sr: Sample rate
+            pitch_factor: Pitch shift factor (1.0 = no change, 2.0 = octave up, 0.5 = octave down)
+            
+        Returns:
+            Pitch-shifted samples with same duration as input
+        """
+        if len(samples) < 2:
+            return samples
+        
+        # Apply phase vocoder pitch shifting
+        try:
+            # Use librosa's phase vocoder for proper pitch shifting
+            shifted_samples = librosa.effects.pitch_shift(
+                samples, 
+                sr=sr, 
+                n_steps=12 * np.log2(pitch_factor),  # Convert factor to semitones
+                bins_per_octave=12
+            )
+            
+            return shifted_samples
+            
+        except Exception as e:
+            print(f"Phase vocoder failed, falling back to resampling: {e}")
+            # Fallback to resampling if phase vocoder fails
+            new_length = int(len(samples) / pitch_factor)
+            if new_length > 1:
+                return resample(samples, new_length)
+            else:
+                return samples
+
     def sing_chord_name(self, chord_name: str, target_pitch_hz: float, duration_ms: int) -> AudioSegment:
         """
-        Generate TTS audio for chord_name and pitch-shift it to target_pitch_hz, stretching to duration_ms.
+        Generate TTS audio for chord_name and pitch-shift it to target_pitch_hz using spectral shifting.
         Args:
             chord_name: The chord name to sing
             target_pitch_hz: The target pitch in Hz
@@ -283,24 +328,20 @@ class VocalSynthesizer:
         # Estimate original pitch - Coqui TTS typically generates around 200-300 Hz
         orig_pitch_hz = 250.0  # Typical Coqui TTS pitch
         
-        # Compute resample factor for pitch shifting
-        resample_factor = target_pitch_hz / orig_pitch_hz
+        # Compute pitch shift factor
+        pitch_factor = target_pitch_hz / orig_pitch_hz
         
-        # Clamp the resample factor to reasonable bounds (0.5 to 2.0)
-        resample_factor = max(0.5, min(2.0, resample_factor))
+        # Clamp the pitch factor to reasonable bounds (0.5 to 2.0)
+        pitch_factor = max(0.5, min(2.0, pitch_factor))
         
-        print(f"    Pitch shift: {orig_pitch_hz:.1f} Hz -> {target_pitch_hz:.1f} Hz (factor: {resample_factor:.2f})")
+        print(f"    Spectral pitch shift: {orig_pitch_hz:.1f} Hz -> {target_pitch_hz:.1f} Hz (factor: {pitch_factor:.2f})")
         
-        # Pitch shift by resampling (note: this changes duration)
-        new_length = int(len(samples) / resample_factor)
-        if new_length > 0:
-            shifted = resample(samples, new_length)
-        else:
-            shifted = samples
+        # Apply spectral pitch shifting (preserves duration)
+        shifted_samples = self._spectral_pitch_shift(samples, sr, pitch_factor)
         
         # Convert back to AudioSegment
         shifted_audio = AudioSegment(
-            shifted.astype(np.int16).tobytes(),
+            shifted_samples.astype(np.int16).tobytes(),
             frame_rate=int(sr),
             sample_width=tts_audio.sample_width,
             channels=tts_audio.channels
@@ -313,7 +354,7 @@ class VocalSynthesizer:
 
     def sing_chord_name_to_melody_contour(self, chord_name: str, melody_segment: List[Tuple[float, float]], duration_ms: int) -> AudioSegment:
         """
-        Generate enhanced TTS audio for chord_name and dynamically pitch-shift it to follow the melody contour.
+        Generate enhanced TTS audio for chord_name and dynamically pitch-shift it to follow the melody contour using spectral shifting.
         Args:
             chord_name: The chord name to sing
             melody_segment: List of (timestamp, frequency_hz) for this chord segment
@@ -369,19 +410,16 @@ class VocalSynthesizer:
                 normalized_freq = orig_pitch_hz
                 print(f"      Segment {i}: Using default freq = {normalized_freq:.1f} Hz")
             
-            # Pitch shift this segment
-            resample_factor = normalized_freq / orig_pitch_hz
+            # Apply spectral pitch shifting to this segment
+            pitch_factor = normalized_freq / orig_pitch_hz
             # Conservative bounds
-            resample_factor = max(0.7, min(1.5, resample_factor))
+            pitch_factor = max(0.7, min(1.5, pitch_factor))
             
-            print(f"      Segment {i}: Resample factor = {resample_factor:.2f}")
+            print(f"      Segment {i}: Pitch factor = {pitch_factor:.2f}")
             
-            new_length = int(len(seg) / resample_factor) if resample_factor > 0 else len(seg)
-            if new_length > 0 and len(seg) > 0:
-                shifted = resample(seg, new_length)
-            else:
-                shifted = seg
-            segments.append(shifted)
+            # Apply spectral pitch shifting (preserves duration)
+            shifted_seg = self._spectral_pitch_shift(seg, sr, pitch_factor)
+            segments.append(shifted_seg)
         
         # Concatenate all pitch-shifted segments
         if segments:
