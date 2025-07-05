@@ -61,8 +61,8 @@ async def test_coqui_tts():
         output_path = temp_file.name
     
     try:
-        result_path = await synthesizer.synthesize_sung_chord_vocals(
-            chord_timeline, melody_contour, instrumental_duration, 
+        result_path = synthesizer.synthesize_sung_chord_vocals(
+            chord_timeline, melody_contour, instrumental_duration,
             output_path, output_path  # Use same file for instrumental (silence)
         )
         
@@ -85,7 +85,7 @@ async def test_coqui_tts():
             os.unlink(output_path)
 
 
-async def test_stable_vocals():
+def test_stable_vocals():
     """Test stable vocals synthesis (no pitch mapping)."""
     print("\n🎵 Testing Stable Vocals (No Pitch Mapping)")
     print("=" * 60)
@@ -112,7 +112,7 @@ async def test_stable_vocals():
         output_path = temp_file.name
     
     try:
-        result_path = await synthesizer.synthesize_stable_chord_vocals(
+        result_path = synthesizer.synthesize_stable_chord_vocals(
             chord_timeline, instrumental_duration, 
             output_path, output_path  # Use same file for instrumental (silence)
         )
@@ -224,7 +224,7 @@ async def main():
     await test_coqui_tts()
     
     # Test stable vocals (no pitch mapping)
-    await test_stable_vocals()
+    test_stable_vocals()
     
     # Test synchronous wrapper
     test_sync_wrapper()

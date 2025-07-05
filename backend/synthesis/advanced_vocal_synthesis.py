@@ -61,12 +61,12 @@ class AdvancedVocalSynthesizer:
             self.tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC", progress_bar=False)
             print("✓ Advanced VocalSynthesizer initialized with default Coqui TTS model")
     
-    async def synthesize_sung_chord_vocals(self, 
-                                          chord_timeline: List[Tuple[str, float, float]],
-                                          melody_contour: List[Tuple[float, float]],
-                                          original_audio_duration_sec: float,
-                                          output_path: str,
-                                          original_audio_path: str) -> str:
+    def synthesize_sung_chord_vocals(self, 
+                                    chord_timeline: List[Tuple[str, float, float]],
+                                    melody_contour: List[Tuple[float, float]],
+                                    original_audio_duration_sec: float,
+                                    output_path: str,
+                                    original_audio_path: str) -> str:
         """
         Synthesize sung chord vocals with advanced Coqui TTS and singing enhancements.
         
@@ -385,11 +385,11 @@ class AdvancedVocalSynthesizer:
             self.tts = None
             print("✓ Coqui TTS resources cleaned up")
     
-    async def synthesize_stable_chord_vocals(self, 
-                                           chord_timeline: List[Tuple[str, float, float]],
-                                           original_audio_duration_sec: float,
-                                           output_path: str,
-                                           original_audio_path: str) -> str:
+    def synthesize_stable_chord_vocals(self, 
+                                     chord_timeline: List[Tuple[str, float, float]],
+                                     original_audio_duration_sec: float,
+                                     output_path: str,
+                                     original_audio_path: str) -> str:
         """
         Synthesize stable chord vocals without pitch mapping (easier to follow).
         
@@ -766,11 +766,11 @@ def synthesize_sung_chord_vocals_sync(chord_timeline: List[Tuple[str, float, flo
     )
     
     try:
-        # Run the async function
-        result = asyncio.run(synthesizer.synthesize_sung_chord_vocals(
+        # Call the synchronous function directly
+        result = synthesizer.synthesize_sung_chord_vocals(
             chord_timeline, melody_contour, original_audio_duration_sec,
             output_path, original_audio_path
-        ))
+        )
         return result
     finally:
         synthesizer.cleanup()
@@ -802,11 +802,11 @@ def synthesize_stable_chord_vocals_sync(chord_timeline: List[Tuple[str, float, f
     )
     
     try:
-        # Run the async function
-        result = asyncio.run(synthesizer.synthesize_stable_chord_vocals(
+        # Call the synchronous function directly
+        result = synthesizer.synthesize_stable_chord_vocals(
             chord_timeline, original_audio_duration_sec,
             output_path, original_audio_path
-        ))
+        )
         return result
     finally:
         synthesizer.cleanup()
